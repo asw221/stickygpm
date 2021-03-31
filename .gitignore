@@ -1,0 +1,29 @@
+
+# Ignore executable dirs
+build
+bin
+
+# Ignore doxygen config file
+Doxyfile
+doc
+
+# Ignore objects and archived libraries
+*.a
+*.o
+lib/nifti/lib/*/*.a
+lib/nifti/lib/*/*.o
+
+
+# Ignore tests (temporary)
+test
+test/*
+
+# Ignore temporaries
+*~
+src/*~
+include/*~
+.Rhistory
+
+
+# Ignore Mac specific files
+.DS_Store
