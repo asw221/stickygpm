@@ -24,8 +24,8 @@ namespace stickygpm {
       matrix_type;
     buffer_type b = stickygpm::csv_reader<T>::read_file(fname);
     matrix_type M(b.size(), b[0].size());
-    for (int i = 0; i < b.size(); i++) {
-      for (int j = 0; j < b[0].size(); j++) {
+    for ( int i = 0; i < (int)b.size(); i++ ) {
+      for ( int j = 0; j < (int)b[0].size(); j++ ) {
 	M.coeffRef(i, j) = b[i][j];
       }
     }

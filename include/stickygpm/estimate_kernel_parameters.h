@@ -51,7 +51,7 @@ namespace stickygpm {
     std::iota( subset.begin(), subset.end(), 0 );
     std::shuffle( subset.begin(), subset.end(), stickygpm::rng() );
     const Eigen::VectorXi subset_rows_ = Eigen::Map<Eigen::VectorXi>
-      ( subset.data(), std::min((int)subset.size(), nloc) );
+      ( subset.data(), std::min( (int)subset.size(), nloc ) );
     const Eigen::VectorXi all_cols_ =
       Eigen::VectorXi::LinSpaced( data.n(), 0, data.n() - 1 );
     const Eigen::VectorXi all_cols_knots_ = Eigen::VectorXi::LinSpaced(
@@ -142,7 +142,7 @@ namespace stickygpm {
     stickygpm::sgpreg_data_summary<T>* data =
       (stickygpm::sgpreg_data_summary<T>*)data_;
     std::vector<T> theta( x.size() - 1 );
-    for ( int i = 0; i < x.size() - 1; i++ ) {
+    for ( int i = 0; i < (int)x.size() - 1; i++ ) {
       theta[i] = static_cast<T>( x[i] );
     }
     param_type par( theta.cbegin(), theta.cend() );
@@ -180,14 +180,14 @@ namespace stickygpm {
       stickygpm::extract_data_summary( data, cov_ptr, nloc );
     param_type par = cov_ptr->param();
     std::vector<double> x( par.size() + 1 );
-    for ( int i = 0; i < par.size(); i++ ) {
+    for ( int i = 0; i < (int)par.size(); i++ ) {
       x[i] = static_cast<double>( par[i] );
     }
     // x[ x.size() - 1 ] = 2 * x[0];
     // x = { Cov Params, nugget variance }
     std::vector<double> lb( x.size(), eps0 );
     std::vector<double> ub( x.size(), huge_val );
-    for ( int i = 0; i < par.size(); i++ ) {
+    for ( int i = 0; i < (int)par.size(); i++ ) {
       lb[i] = static_cast<double>(cov_ptr->param_lower_bounds()[i]) +
 	eps0;
       ub[i] = static_cast<double>(cov_ptr->param_upper_bounds()[i]) -
@@ -206,7 +206,7 @@ namespace stickygpm {
     optimizer.set_xtol_rel( xtol );
     try {
       optimizer.optimize( x, min_obj );
-      for ( int i = 0; i < par.size(); i++ ) {
+      for ( int i = 0; i < (int)par.size(); i++ ) {
 	par[i] = static_cast<T>( x[i] );
       }
       std::cout << "\n(Nugget variance = " << x.back() << ")"

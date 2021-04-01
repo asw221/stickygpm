@@ -42,12 +42,12 @@ namespace stickygpm {
     stickygpm::qform_type Q = stickygpm::qform_matrix(mask);
     Eigen::MatrixXi ijk = stickygpm::get_nonzero_indices(mask);
     std::vector<int> row_index(ijk.rows());
-    for (int i = 0; i < row_index.size(); i++) {
+    for ( int i = 0; i < (int)row_index.size(); i++ ) {
       row_index[i] = i;
     }
     std::shuffle(row_index.begin(), row_index.end(), stickygpm::rng());
     Eigen::VectorXi rows_ = Eigen::Map<Eigen::VectorXi>(
-      row_index.data(), std::min(ngrid, (int)row_index.size()));
+      row_index.data(), std::min( ngrid, (int)row_index.size() ));
     ijk.conservativeResize(ijk.rows(), ijk.cols() + 1);
     ijk.col(ijk.cols() - 1) = Eigen::VectorXi::Ones(ijk.rows());
     Eigen::Matrix<RealType, Eigen::Dynamic, Eigen::Dynamic> Knots =

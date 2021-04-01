@@ -290,8 +290,12 @@ void stickygpm::stickygpm_regression_data<RealType>
   if ( outcome_files.empty() ) {
     throw std::runtime_error( "No input image files" );
   }
-  else if ( outcome_files.size() != n() ) {
+  else if ( (int)outcome_files.size() != n() ) {
     std::ostringstream msg;
+    for ( std::string of : outcome_files ) {
+      msg << of << "\n";
+    }
+    msg << "\n";
     msg << outcome_files.size() << " file(s) found "
 	<< " (Expected " << n() << ")";
     throw std::runtime_error( msg.str() );
@@ -305,7 +309,7 @@ void stickygpm::stickygpm_regression_data<RealType>
 
   std::cout << "Reading outcome data from " << outcome_files.size()
 	    << " files\n";
-  for ( int i = 0; i < outcome_files.size(); i++ ) {
+  for ( int i = 0; i < (int)outcome_files.size(); i++ ) {
     ::nifti_image* data =
       stickygpm::nifti_image_read( outcome_files[i], 1 );
     std::vector<scalar_type> ytemp =

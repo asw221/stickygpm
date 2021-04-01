@@ -314,7 +314,7 @@ bool stickygpm::stickygpm_regression_model<T>::output
   vector_type temp;
 
   // Loop over clustered parameters
-  for ( int k = 0; k < _beta_first_moment.size(); k++ ) {
+  for ( int k = 0; k < (int)_beta_first_moment.size(); k++ ) {
     std::string beta_file_base = basename +
       std::string("_cluster") + std::to_string( k ) +
       std::string("_beta");
@@ -454,7 +454,7 @@ double stickygpm::stickygpm_regression_model<T>::output::dic(
   Eigen::VectorXd cllk( pk.size() );  // Conditional log likelihood
   //
   std::vector< matrix_type > Beta( _beta_first_moment.size() );
-  for ( int j = 0; j < Beta.size(); j++ ) {
+  for ( int j = 0; j < (int)Beta.size(); j++ ) {
     Beta[j] = _beta_first_moment[j] / _updates;
   }
   //
@@ -514,7 +514,7 @@ void stickygpm::stickygpm_regression_model<T>::output::close_logs() {
   if ( _output_samples ) {
     _etc_log.close();
     _cluster_log.close();
-    for ( int k = 0; k < _beta_log.size(); k++ ) {
+    for ( int k = 0; k < (int)_beta_log.size(); k++ ) {
       _beta_log[ k ].close();
       _lsbp_coeffs_log[ k ].close();
     }
@@ -570,7 +570,7 @@ stickygpm::stickygpm_regression_model<T>::stickygpm_regression_model(
     gpreg( lsbp_truncation );
   gpreg[0] = stickygpm::projected_gp_regression<scalar_type>
     ( _gp_basis_ptr_, data.X().cols() );
-  for ( int k = 1; k < gpreg.size(); k++ ) {
+  for ( int k = 1; k < (int)gpreg.size(); k++ ) {
     gpreg[k] = gpreg[0];
   }
   // std::cout << "& Moving models " << std::endl;

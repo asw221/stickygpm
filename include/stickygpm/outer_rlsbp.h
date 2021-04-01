@@ -350,7 +350,7 @@ template< class InnerModelType >
 typename outer_rlsbp<InnerModelType>::vector_type
 outer_rlsbp<InnerModelType>::cluster_sizes() const {
   vector_type n(_cluster_indices.size());
-  for (int j = 0; j < _cluster_indices.size(); j++) {
+  for (int j = 0; j < (int)_cluster_indices.size(); j++) {
     n.coeffRef(j) = (scalar_type)_cluster_indices[ j ].size();
   }
   return n;
@@ -364,7 +364,7 @@ typename outer_rlsbp<InnerModelType>::vector_type
 outer_rlsbp<InnerModelType>::realized_cluster_probability() const {
   vector_type prk(_cluster_indices.size());
   scalar_type total = 0;
-  for (int j = 0; j < _cluster_indices.size(); j++) {
+  for (int j = 0; j < (int)_cluster_indices.size(); j++) {
     prk.coeffRef(j) = _cluster_indices[j].size();
     total += prk.coeffRef(j);
   }
@@ -384,7 +384,7 @@ outer_rlsbp<InnerModelType>::residuals(
   const int& subject_i
 ) const {
 #ifndef DNDEBUG
-  if ( subject_i < 0 || subject_i >= _cluster_labels.size() ) {
+  if ( subject_i < 0 || subject_i >= (int)_cluster_labels.size() ) {
     throw std::domain_error(
       "outer_rlsbp::log_likelihood : bad subject index"
       );
@@ -410,7 +410,7 @@ double outer_rlsbp<InnerModelType>::log_kernel(
   const int& subject_i
 ) const {
 #ifndef DNDEBUG
-  if ( subject_i < 0 || subject_i >= _cluster_labels.size() ) {
+  if ( subject_i < 0 || subject_i >= (int)_cluster_labels.size() ) {
     throw std::domain_error(
       "outer_rlsbp::log_likelihood : bad subject index"
       );
@@ -463,7 +463,7 @@ double outer_rlsbp<InnerModelType>::log_likelihood(
   const int& subject_i
 ) const {
 #ifndef DNDEBUG
-  if ( subject_i < 0 || subject_i >= _cluster_labels.size() ) {
+  if ( subject_i < 0 || subject_i >= (int)_cluster_labels.size() ) {
     throw std::domain_error(
       "outer_rlsbp::log_likelihood : bad subject index"
       );
@@ -512,7 +512,7 @@ int outer_rlsbp<InnerModelType>::cluster_label(
   const int subject_i
 ) const {
 #ifndef DNDEBUG
-  if ( subject_i < 0 || subject_i >= _cluster_labels.size() ) {
+  if ( subject_i < 0 || subject_i >= (int)_cluster_labels.size() ) {
     throw std::domain_error(
       "outer_rlsbp::cluster_label : bad subject index"
       );
@@ -529,7 +529,7 @@ int outer_rlsbp<InnerModelType>::cluster_label(
 template< class InnerModelType >
 int outer_rlsbp<InnerModelType>::occupied_clusters() const {
   int n = 0;
-  for (int j = 0; j < _cluster_indices.size(); j++) {
+  for (int j = 0; j < (int)_cluster_indices.size(); j++) {
     if ( !_cluster_indices[j].empty() )
       n++;
   }
@@ -543,10 +543,10 @@ template< class InnerModelType >
 int outer_rlsbp<InnerModelType>::modal_cluster() const {
   int which = 0;
   int nmax = _cluster_indices[0].size();
-  for (int j = 1; j < _cluster_indices.size(); j++) {
-    if ( _cluster_indices[j].size() > nmax ) {
+  for (int j = 1; j < (int)_cluster_indices.size(); j++) {
+    if ( (int)_cluster_indices[j].size() > nmax ) {
       which = j;
-      nmax = _cluster_indices[j].size();
+      nmax = (int)_cluster_indices[j].size();
     }
   }
   return which;
@@ -612,7 +612,7 @@ double outer_rlsbp<InnerModelType>::update(
   // double diff_sec;
   // auto start_t = std::chrono::high_resolution_clock::now();
   //
-  for ( int j = 0; j < _inner_models.size(); j++ ) {
+  for ( int j = 0; j < (int)_inner_models.size(); j++ ) {
     // std::cout << j << " ";
     if ( _cluster_indices[j].empty() ) {
       _inner_models[j].sample_from_prior();
@@ -641,7 +641,7 @@ double outer_rlsbp<InnerModelType>::update(
   ratio = isnan( ratio ) ? 0 : ratio;
   ratio = ( ratio > 1 ) ? 1 : ratio;
   accept = Unif( stickygpm::rng() ) < ratio;
-  for ( int j = 0; j < _inner_models.size(); j++ ) {
+  for ( int j = 0; j < (int)_inner_models.size(); j++ ) {
     if ( accept ) {
       _inner_models[j].accept_proposal();
     }
@@ -753,7 +753,7 @@ void outer_rlsbp<InnerModelType>::sort_clusters() {
   std::vector<int> csize( _cluster_indices.size(), 0 );
   int L;
   // First count size of reference clusters
-  for (int i = 0; i < _reference_labels.size(); i++) {
+  for (int i = 0; i < (int)_reference_labels.size(); i++) {
     csize[ _reference_labels[i] ]++;
   }
   //
@@ -764,7 +764,7 @@ void outer_rlsbp<InnerModelType>::sort_clusters() {
 	       return csize[a] > csize[b];
 	     });
   // Find associated relabeling
-  for (int k = 0; k < remap.size(); k++) {
+  for (int k = 0; k < (int)remap.size(); k++) {
     for (L = 0; ord[L] != k; L++) { ; }
     remap[k] = L;
   }
@@ -811,8 +811,6 @@ void outer_rlsbp<InnerModelType>::_initialize_cluster_labels(
   _cluster_indices.resize( trunc );
   _reserve_cluster_indices( Y.cols() );
   _Clustering_cost = Eigen::MatrixXi::Zero( trunc, trunc );
-  // _cluster_counts = std::vector<int>(trunc, 0);
-  std::uniform_real_distribution _Uniform( 0, 1 );
   std::vector<vector_type> cluster_centers;
   cluster_centers.reserve( trunc );
   std::vector<double> cluster_probabilities;
@@ -838,8 +836,8 @@ void outer_rlsbp<InnerModelType>::_initialize_cluster_labels(
 					   n_sigma2_y );
       // ^^ relative probabilities
     }
-    if ( cluster_probabilities.size() < trunc ) {
-      cluster_probabilities[cluster_probabilities.size() - 1] = E_INV;
+    if ( (int)cluster_probabilities.size() < trunc ) {
+      cluster_probabilities.back() = E_INV;
     }
     std::discrete_distribution<int> Categorical(
       cluster_probabilities.begin(), cluster_probabilities.end());
@@ -848,11 +846,9 @@ void outer_rlsbp<InnerModelType>::_initialize_cluster_labels(
     _reference_labels[i] = cluster;
     _Clustering_cost.coeffRef(cluster, cluster) -= 1;
     _cluster_indices[cluster].push_back(i);
-    // _cluster_counts[cluster]++;
     nclust = _cluster_indices[cluster].size();
     if ( i < (Y.cols() - 1) ) {
       // Only update cluster centers if needed for next iteration
-      // if ( _cluster_counts[cluster] <= 1 ) {
       if ( nclust <= 1 ) {
 	cluster_centers.push_back( Y.col(i).eval() );
 	occupied_clusters++;
@@ -901,7 +897,7 @@ void outer_rlsbp<InnerModelType>::_update_cluster_labels(
   _Clustering_cost.setZero( _MaxClust_ + 1, _MaxClust_ + 1 );
 
   // Reserve space for cluster indices
-  for (int j = 0; j < _cluster_indices.size(); j++) {
+  for (int j = 0; j < (int)_cluster_indices.size(); j++) {
     if ( !_cluster_indices[j].empty() ) {
       max_cluster_size = std::max(
         max_cluster_size, (long)_cluster_indices[j].size() );
@@ -960,11 +956,11 @@ void outer_rlsbp<InnerModelType>::_update_cluster_labels(
 
     if ( use_likelihood ) {
       
-      for (int j = 0; j < likelihood.size(); j++) {
+      for (int j = 0; j < (int)likelihood.size(); j++) {
 	likelihood[j] = std::exp(likelihood[j] - highest_loglik);
 	sumlike += likelihood[j];
       }
-      for (int j = 0; j < _pr_clust_i.size(); j++) {
+      for (int j = 0; j < (int)_pr_clust_i.size(); j++) {
 	_pr_clust_i[j] *= likelihood[j] / sumlike;
       }
 
@@ -1080,7 +1076,7 @@ void outer_rlsbp<InnerModelType>::_update_logistic_coefficients(
     if ( n_in_clust > 0  &&  n_in_clust < N ) {
       // Update with likelihood info
       
-      for (int i = 0; i < _cluster_labels.size(); i++) {
+      for (int i = 0; i < (int)_cluster_labels.size(); i++) {
 	cluster = _cluster_labels[i];
         mu = data.Z().row(i) * _LoCoeffs_W.col(j);
 	// mu = 0;
@@ -1273,7 +1269,7 @@ void outer_rlsbp<InnerModelType>::_reorder_clusters(
   //
   // Reorder cluster:
   //   atoms / indices / logistic coefficients
-  for (int k = 0; k < new_labels.size(); k++) {
+  for (int k = 0; k < (int)new_labels.size(); k++) {
     // Swap inner model pointers
     std::iter_swap(
       _inner_models.begin() + k,
@@ -1290,7 +1286,7 @@ void outer_rlsbp<InnerModelType>::_reorder_clusters(
     _LoCoeffs_W.col(ord[k]) = wtemp;
     //
     // Update 'ord'
-    for (int h = k; h < ord.size(); h++) {
+    for (int h = k; h < (int)ord.size(); h++) {
       if ( ord[h] == k ) {
 	ord[h] = ord[k];
 	break;

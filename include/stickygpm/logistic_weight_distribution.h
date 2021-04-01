@@ -25,6 +25,26 @@
 
 
 template< class RealType = double >
+class logistic_weight_distribution;
+
+
+template< class RealType >
+bool operator== (
+  const logistic_weight_distribution<RealType>& lhs,
+  const logistic_weight_distribution<RealType>& rhs
+);
+
+
+template< class RealType >
+bool operator!= (
+  const logistic_weight_distribution<RealType>& lhs,
+  const logistic_weight_distribution<RealType>& rhs
+);
+
+
+
+
+template< class RealType >
 class logistic_weight_distribution {
 
 public:
@@ -65,12 +85,12 @@ public:
   void param(const param_type &par);
   void reset();
 
-  friend bool operator== (
+  friend bool operator==<RealType> (
     const logistic_weight_distribution<RealType> &lhs,
     const logistic_weight_distribution<RealType> &rhs
   );
   
-  friend bool operator!= (
+  friend bool operator!=<RealType> (
     const logistic_weight_distribution<RealType> &lhs,
     const logistic_weight_distribution<RealType> &rhs
   );

@@ -11,8 +11,27 @@
 #ifndef _TRUNCATED_NORMAL_DISTRIBUTION_
 #define _TRUNCATED_NORMAL_DISTRIBUTION_
 
-
 template< class RealType = double >
+class truncated_normal_distribution;
+
+
+template< class RealType >
+bool operator== (
+  const truncated_normal_distribution<RealType>& lhs,
+  const truncated_normal_distribution<RealType>& rhs
+);
+
+template< class RealType >
+bool operator!= (
+  const truncated_normal_distribution<RealType>& lhs,
+  const truncated_normal_distribution<RealType>& rhs
+);
+
+
+
+
+
+template< class RealType >
 class truncated_normal_distribution {
   
 public:
@@ -71,12 +90,12 @@ public:
   void param(const param_type &par);
   void reset();
 
-  friend bool operator== (
+  friend bool operator==<RealType> (
     const truncated_normal_distribution<RealType> &lhs,
     const truncated_normal_distribution<RealType> &rhs
   );
   
-  friend bool operator!= (
+  friend bool operator!=<RealType> (
     const truncated_normal_distribution<RealType> &lhs,
     const truncated_normal_distribution<RealType> &rhs
   );
