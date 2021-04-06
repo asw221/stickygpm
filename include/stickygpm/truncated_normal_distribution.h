@@ -11,24 +11,6 @@
 #ifndef _TRUNCATED_NORMAL_DISTRIBUTION_
 #define _TRUNCATED_NORMAL_DISTRIBUTION_
 
-template< class RealType = double >
-class truncated_normal_distribution;
-
-
-template< class RealType >
-bool operator== (
-  const truncated_normal_distribution<RealType>& lhs,
-  const truncated_normal_distribution<RealType>& rhs
-);
-
-template< class RealType >
-bool operator!= (
-  const truncated_normal_distribution<RealType>& lhs,
-  const truncated_normal_distribution<RealType>& rhs
-);
-
-
-
 
 
 template< class RealType >
@@ -48,20 +30,22 @@ public:
     RealType _sigma;      // standard deviation
 
   public:
-    typedef truncated_normal_distribution<RealType> distribution_type;
-
-    explicit param_type(RealType mean = 0.0, RealType sd = 1.0,
-			RealType lower = 0.0, RealType upper = 1e4);
+    explicit param_type(
+      RealType mean  = 0,
+      RealType sd    = 1,
+      RealType lower = 0,
+      RealType upper = 1e4
+    );
 
     RealType cdf_max() const;
     RealType cdf_min() const;
-    RealType max() const;
-    RealType mean() const;
-    RealType min() const;
-    RealType stddev() const;
+    RealType max()     const;
+    RealType mean()    const;
+    RealType min()     const;
+    RealType stddev()  const;
 
-    friend bool operator== (const param_type &lhs, const param_type &rhs);
-    friend bool operator!= (const param_type &lhs, const param_type &rhs);
+    bool operator== ( const param_type& other ) const;
+    bool operator!= ( const param_type& other ) const;
 
     template< class CharT, class Traits >
     friend std::basic_ostream<CharT, Traits>& operator<< (
@@ -72,33 +56,33 @@ public:
 
 
   explicit truncated_normal_distribution(
-    RealType mean = 0.0, RealType sd = 1.0,
-    RealType lower = 0.0, RealType upper = 1e4
+    RealType mean  = 0,
+    RealType sd    = 1,
+    RealType lower = 0,
+    RealType upper = 1e4
   );
   
-  explicit truncated_normal_distribution(const param_type &par);
+  explicit truncated_normal_distribution( const param_type &par );
 
   template< class Generator >
   RealType operator() (Generator &g);
 
-  RealType max() const;
-  RealType mean() const;
-  RealType min() const;
-  RealType stddev() const;
-  param_type param() const;
+  RealType   max()    const;
+  RealType   mean()   const;
+  RealType   min()    const;
+  RealType   stddev() const;
+  param_type param()  const;
 
-  void param(const param_type &par);
+  void param( const param_type &par );
   void reset();
 
-  friend bool operator==<RealType> (
-    const truncated_normal_distribution<RealType> &lhs,
-    const truncated_normal_distribution<RealType> &rhs
-  );
+  bool operator== (
+    const truncated_normal_distribution<RealType>& other
+  ) const;
   
-  friend bool operator!=<RealType> (
-    const truncated_normal_distribution<RealType> &lhs,
-    const truncated_normal_distribution<RealType> &rhs
-  );
+  bool operator!= (
+    const truncated_normal_distribution<RealType>& other
+  ) const;
 
   template< class CharT, class Traits >
   friend std::basic_ostream<CharT, Traits>& operator<< (
@@ -120,17 +104,20 @@ private:
 
 
 
-// Constructors & Destructors --------------------------------------------------
+// --- Constructors & Destructors ------------------------------------
 
 template< class RealType >
 truncated_normal_distribution<RealType>::param_type::param_type(
   RealType mean, RealType sd,
   RealType lower, RealType upper
 ) {
-  if (sd <= 0)
-    throw std::logic_error("Normal distribution variance must be > 0");
-  if (lower == upper)
-    throw std::logic_error("Lower and upper bounds identical");
+  if (sd <= 0) {
+    throw std::domain_error(
+      "Normal distribution variance must be > 0");
+  }
+  if (lower == upper) {
+    throw std::domain_error("Lower and upper bounds identical");
+  }
   if (lower > upper) {
     std::cerr << "Truncated normal distribution: swapping bounds.\n"
 	      << "(Lower bound greater than upper bound)\n";
@@ -154,7 +141,8 @@ truncated_normal_distribution<RealType>::param_type::param_type(
 
 
 template< class RealType >
-truncated_normal_distribution<RealType>::truncated_normal_distribution(
+truncated_normal_distribution<RealType>
+::truncated_normal_distribution(
   RealType mean, RealType sd, RealType lower, RealType upper
 ) {
   param(param_type(mean, sd, lower, upper));
@@ -162,7 +150,8 @@ truncated_normal_distribution<RealType>::truncated_normal_distribution(
 
 
 template< class RealType >
-truncated_normal_distribution<RealType>::truncated_normal_distribution(
+truncated_normal_distribution<RealType>
+::truncated_normal_distribution(
   const param_type &par
 ) {
   param(par);
@@ -170,65 +159,74 @@ truncated_normal_distribution<RealType>::truncated_normal_distribution(
 
 
 
-// Utility Functions/Operators -------------------------------------------------
+// --- Utility Functions/Operators -----------------------------------
 
 template< class RealType >
 template< class Generator >
-RealType truncated_normal_distribution<RealType>::operator() (Generator &g) {
+RealType truncated_normal_distribution<RealType>::operator() (
+  Generator &g
+) {
   const RealType x = (RealType)_Uniform_(g) *
     (_par.cdf_max() - _par.cdf_min()) + _par.cdf_min();
-  return extra_distributions::std_normal_quantile(x) * stddev() + mean();
+  return extra_distributions::std_normal_quantile(x) * stddev()
+    + mean();
 };
 
 
 
-// Friend Functions ------------------------------------------------------------
 
 template< class RealType >
-bool operator==(
-  const typename truncated_normal_distribution<RealType>::param_type &lhs,
-  const typename truncated_normal_distribution<RealType>::param_type &rhs
-) {
-  const bool paramsSame = (lhs._mu == rhs._mu) && (lhs._sigma == rhs._sigma);
-  const bool truncationSame = (lhs._low == rhs._low) &&
-    (lhs._high == rhs._high);
+bool truncated_normal_distribution<RealType>::param_type
+::operator== (
+  const typename
+  truncated_normal_distribution<RealType>::param_type& other
+) const {
+  const bool paramsSame = (_mu == other._mu) &&
+    (_sigma == other._sigma);
+  const bool truncationSame = (_low == other._low) &&
+    (_high == other._high);
   return paramsSame && truncationSame;
 };
 
 
 template< class RealType >
-bool operator!=(
-  const typename truncated_normal_distribution<RealType>::param_type &lhs,
-  const typename truncated_normal_distribution<RealType>::param_type &rhs
-) {
-  return !(lhs == rhs);
+bool truncated_normal_distribution<RealType>::param_type
+::operator!= (
+  const typename
+  truncated_normal_distribution<RealType>::param_type& other
+) const {
+  return !(*this == other);
 };
 
 
 
 template< class RealType >
-bool operator==(
-  const truncated_normal_distribution<RealType> &lhs,
-  const truncated_normal_distribution<RealType> &rhs
-) {
-  return lhs._par == rhs._par;
+bool truncated_normal_distribution<RealType>::operator== (
+  const truncated_normal_distribution<RealType>& other
+) const {
+  return _par == other._par;
 };
 
 
 
 template< class RealType >
-bool operator!=(
-  const truncated_normal_distribution<RealType> &lhs,
-  const truncated_normal_distribution<RealType> &rhs
-) {
-  return !(lhs == rhs);
+bool truncated_normal_distribution<RealType>::operator!= (
+  const truncated_normal_distribution<RealType>& other
+) const {
+  return !(*this == other);
 };
+
+
+
+
+// --- Friend Functions ----------------------------------------------
 
 
 template< class RealType, class CharT, class Traits >
 std::basic_ostream<CharT, Traits>& operator<<(
   std::basic_ostream<CharT, Traits> &ost,
-  const typename truncated_normal_distribution<RealType>::param_type &pt
+  const typename
+  truncated_normal_distribution<RealType>::param_type &pt
 ) {
   ost << pt._mu << ", " << pt._sigma
       << "; [" << pt._low << ", " << pt._high << ")";
@@ -248,22 +246,25 @@ std::basic_ostream<CharT, Traits>& operator<<(
 
 
 
-// Getters ---------------------------------------------------------------------
+// --- Getters -------------------------------------------------------
 
 template< class RealType >
-RealType truncated_normal_distribution<RealType>::param_type::cdf_max() const {
+RealType truncated_normal_distribution<RealType>::param_type
+::cdf_max() const {
   return _prob_high;
 };
 
 
 template< class RealType >
-RealType truncated_normal_distribution<RealType>::param_type::cdf_min() const {
+RealType truncated_normal_distribution<RealType>::param_type
+::cdf_min() const {
   return _prob_low;
 };
 
 
 template< class RealType >
-RealType truncated_normal_distribution<RealType>::param_type::max() const {
+RealType truncated_normal_distribution<RealType>::param_type
+::max() const {
   return _high;
 };
 
@@ -275,7 +276,8 @@ RealType truncated_normal_distribution<RealType>::max() const {
 
 
 template< class RealType >
-RealType truncated_normal_distribution<RealType>::param_type::mean() const {
+RealType truncated_normal_distribution<RealType>::param_type
+::mean() const {
   return _mu;
 };
 
@@ -287,7 +289,8 @@ RealType truncated_normal_distribution<RealType>::mean() const {
 
 
 template< class RealType >
-RealType truncated_normal_distribution<RealType>::param_type::min() const {
+RealType truncated_normal_distribution<RealType>::param_type
+::min() const {
   return _low;
 };
 
@@ -299,7 +302,8 @@ RealType truncated_normal_distribution<RealType>::min() const {
 
 
 template< class RealType >
-RealType truncated_normal_distribution<RealType>::param_type::stddev() const {
+RealType truncated_normal_distribution<RealType>::param_type
+::stddev() const {
   return _sigma;
 };
 
@@ -319,11 +323,12 @@ truncated_normal_distribution<RealType>::param() const {
 
 
 
-// Setters ---------------------------------------------------------------------
+// --- Setters -------------------------------------------------------
 
 template< class RealType >
 void truncated_normal_distribution<RealType>::param(
-  const typename truncated_normal_distribution<RealType>::param_type &par
+  const typename
+  truncated_normal_distribution<RealType>::param_type &par
 ) {
   _par = par;
 };

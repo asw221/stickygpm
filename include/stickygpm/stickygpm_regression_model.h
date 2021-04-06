@@ -35,6 +35,7 @@ namespace stickygpm {
     typedef typename Eigen::Matrix<scalar_type, Eigen::Dynamic, 1>
     vector_type;
 
+    //
     class output {
     public:
       output() { ; }
@@ -83,9 +84,11 @@ namespace stickygpm {
       std::vector< matrix_type > _beta_first_moment;
       std::vector< matrix_type > _beta_second_moment;
       std::vector< matrix_type > _lsbp_coeffs_second_moment;
+      matrix_type _cluster_assignment_counts;
       matrix_type _lsbp_coeffs_first_moment;
       vector_type _sigma_sq_first_moment;
     };
+    // end - class output
     
     
     stickygpm_regression_model(
@@ -237,6 +240,9 @@ void stickygpm::stickygpm_regression_model<T>::output::update(
       lsbp.logistic_coefficients().cols()
     );
 
+    _cluster_assignment_counts =
+      matrix_type::Zero( data.n(), lsbp.truncation() );
+
     if ( _output_samples ) {
       // Add variable names to _etc_log
       _etc_log << "LogLikelihood\tShapeSigma\tRateSigma";
@@ -246,7 +252,7 @@ void stickygpm::stickygpm_regression_model<T>::output::update(
       _etc_log << std::endl;
     }
   }
-  //
+  // end - Initialize storage
 
   // Update stored summaries
   vector_type proj_beta;
@@ -263,7 +269,11 @@ void stickygpm::stickygpm_regression_model<T>::output::update(
   _sigma_sq_first_moment += sigma_sq_inv.cwiseInverse();
   _lsbp_coeffs_first_moment += lsbp.logistic_coefficients();
   _loglik_first_moment += log_likelihood;
-  //
+
+  for ( int i = 0; i < data.n(); i++ ) {
+    _cluster_assignment_counts.coeffRef( i, lsbp.cluster_label(i) )++;
+  }
+  // end - Update sotred summaries
 
   // Update log files if requested
   if ( _output_samples ) {
@@ -382,6 +392,19 @@ bool stickygpm::stickygpm_regression_model<T>::output
   lsbp_log.open( lsbp_file.c_str() );
   if ( lsbp_log ) {
     lsbp_log << ( _lsbp_coeffs_first_moment / _updates )
+	     << std::endl;
+    lsbp_log.close();
+    std::cout << lsbp_file << " written!\n";
+  }
+  else {
+    failed = failed + sep + lsbp_file;
+  }
+
+  // Write cluster allotment
+  lsbp_file = basename + std::string("_cluster_probability.dat");
+  lsbp_log.open( lsbp_file.c_str() );
+  if ( lsbp_log ) {
+    lsbp_log << ( _cluster_assignment_counts / _updates )
 	     << std::endl;
     lsbp_log.close();
     std::cout << lsbp_file << " written!\n";
@@ -636,7 +659,7 @@ void stickygpm::stickygpm_regression_model<T>::run_mcmc(
   double pr_full = 0.5;
   stickygpm::utilities::progress_bar pb( nsave * thin + burnin );
   int save_count = 0;
-  double loglik, mhrate;
+  double loglik = 0, mhrate = 0;
   bool warmup_period, update_reflab, realign_labels;
   int iter = 0;
   std::cout << "Fitting model" << std::endl;

@@ -1,6 +1,10 @@
 
+#include <iostream>
 #include <string>
 #include <vector>
+
+#include "stickygpm/csv_reader.h"
+
 
 
 template< typename T >
@@ -156,6 +160,13 @@ std::string stickygpm::sgpreg_command_parser<T>::output_file(
 
 
 template< typename T >
+std::string stickygpm::sgpreg_command_parser<T>::subset_file() const {
+  return _subset_file;
+};
+
+
+
+template< typename T >
 unsigned int stickygpm::sgpreg_command_parser<T>::seed() const {
   return _seed;
 };
@@ -176,3 +187,69 @@ stickygpm::sgpreg_command_parser<T>
 };
 
 
+
+template< typename T >
+void stickygpm::sgpreg_command_parser<T>::_subset_outcome_files() {
+  if ( !_subset_file.empty() && !_data_files.empty() ) {
+
+    std::vector< std::vector<std::string> > tokens =
+      stickygpm::csv_reader<std::string>::read_file( _subset_file );
+    
+    std::vector<std::string> subset;
+    subset.reserve( _data_files.size() );
+    // ^^ Reserve to size of _data_files for cases when multiple
+    // files match one token, etc
+
+    int matched_tokens = 0, nmatches;
+    
+    for ( int i = 0; i < (int)tokens.size(); i++ ) {
+      // Order the new _data_files in token order
+      nmatches = 0;
+      
+      for ( int j = 0; j < (int)_data_files.size(); j++ ) {
+	
+	if ( _data_files[j].find( tokens[i][0] ) != std::string::npos ) {
+	  if ( subset.empty() ) {
+	    subset.push_back( _data_files[j] );
+	    nmatches++;
+	  }
+	  else {
+	    // Only push_back _data_files[j] if not already in subset
+	    int k = 0;
+	    bool duplicated = false;
+	    while ( k < (int)subset.size() && !duplicated ) {
+	      duplicated = subset[k] == _data_files[j];
+	      k++;
+	    }
+	    if ( !duplicated ) {
+	      subset.push_back( _data_files[j] );
+	      nmatches++;
+	    }
+	  }
+	}
+	// end - if ( _data_files[j].find( ...
+	
+      }  // end - for ( int j = 0; ...
+
+      if ( nmatches > 0 ) {
+	matched_tokens++;
+      }
+    }    // end - for ( int i = 0; ...
+
+    subset.shrink_to_fit();
+    _data_files.assign( subset.begin(), subset.end() );
+    if ( _data_files.empty() ) {
+      _status = call_status::error;
+    }
+
+    if ( matched_tokens < (int)tokens.size() ) {
+      std::cerr << "\n\t*** "
+		<< matched_tokens << " out of "
+		<< tokens.size() << " tokens matched from file "
+		<< _subset_file
+		<< "\n";
+    }
+    
+  }
+  // end - if ( !_subset_file.empty() && ...
+};

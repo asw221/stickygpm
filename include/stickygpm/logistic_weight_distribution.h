@@ -8,43 +8,39 @@
 
 
 
-/*
- * Following:
- *
- *   Holmes & Held (2006) Bayesian Analysis.
- *   "Bayesian Auxiliary Variable Models for Binary and Multinomial 
- *    Regression"
- *   < Appendix: A4 >
- *
- */
-
-
-
 #ifndef _LOGISTIC_WEIGHT_DISTRIBUTION_
 #define _LOGISTIC_WEIGHT_DISTRIBUTION_
 
 
+/*! Logistic weight distribution
+ *
+ * Posterior distribution of mixing weights for binary outcome models
+ * with gaussian priors, and the logit link function. Part of an 
+ * auxiliary data method to enable conditionally conjugate sampling.
+ *
+ * Following <a href="https://projecteuclid.org/journals/bayesian-analysis/volume-1/issue-1/Bayesian-auxiliary-variable-models-for-binary-and-multinomial-regression/10.1214/06-BA105.full">Holmes & Held, 2006</a>:
+ *
+ * Holmes & Held (2006) Bayesian Analysis.
+ *   "Bayesian Auxiliary Variable Models for Binary and Multinomial 
+ *    Regression"
+ *   [Appendix: A4]
+ *
+ * In the notation of Holmes & Held, this class encodes the 
+ * distribution of lambda given parameter theta = R^2.
+ * 
+ * In Bayesian logistic regression with Gaussian priors on beta,
+ * the posterior of beta can be expressed as a Gaussian mixture.
+ * This is the distribution of the the mixing weights, lambda, for
+ * such a model: the conditional posterior of beta given y and lambda
+ * is simply conjugate Gaussian.
+ *
+ */
+
+// -------------------------------------------------------------------
+
+
+
 template< class RealType = double >
-class logistic_weight_distribution;
-
-
-template< class RealType >
-bool operator== (
-  const logistic_weight_distribution<RealType>& lhs,
-  const logistic_weight_distribution<RealType>& rhs
-);
-
-
-template< class RealType >
-bool operator!= (
-  const logistic_weight_distribution<RealType>& lhs,
-  const logistic_weight_distribution<RealType>& rhs
-);
-
-
-
-
-template< class RealType >
 class logistic_weight_distribution {
 
 public:
@@ -55,15 +51,13 @@ public:
     RealType _theta;
     
   public:
-    typedef logistic_weight_distribution<RealType> distribution_type;
-
-    explicit param_type(RealType theta = 1);
+    explicit param_type( RealType theta = 1 );
     RealType max() const;
     RealType min() const;
     RealType theta() const;
 
-    friend bool operator== (const param_type& lhs, const param_type& rhs);
-    friend bool operator!= (const param_type& lhs, const param_type& rhs);
+    bool operator== ( const param_type& other ) const;
+    bool operator!= ( const param_type& other ) const;
 
     template< class CharT, class Traits >
     friend std::basic_ostream<CharT, Traits>& operator<< (
@@ -73,27 +67,25 @@ public:
   };
 
 
-  explicit logistic_weight_distribution(RealType theta = 1);
-  explicit logistic_weight_distribution(const param_type &par);
+  explicit logistic_weight_distribution( RealType theta = 1 );
+  explicit logistic_weight_distribution( const param_type &par );
 
   template< class Generator >
-  RealType operator() (Generator& g, const int maxIt = 100);
+  RealType operator() ( Generator& g, const int maxIt = 100 );
 
   RealType theta() const;
   param_type param() const;
 
-  void param(const param_type &par);
+  void param( const param_type &par );
   void reset();
 
-  friend bool operator==<RealType> (
-    const logistic_weight_distribution<RealType> &lhs,
-    const logistic_weight_distribution<RealType> &rhs
-  );
+  bool operator== (
+    const logistic_weight_distribution<RealType> &other
+  ) const;
   
-  friend bool operator!=<RealType> (
-    const logistic_weight_distribution<RealType> &lhs,
-    const logistic_weight_distribution<RealType> &rhs
-  );
+  bool operator!= (
+    const logistic_weight_distribution<RealType> &other
+  ) const;
 
   template< class CharT, class Traits >
   friend std::basic_ostream<CharT, Traits>& operator<< (
@@ -101,16 +93,17 @@ public:
     const logistic_weight_distribution<RealType>& d
   );
 
-  static const RealType _interval_pivot;
-  static const RealType _eps_r;
-  static const RealType _lambda_0;
-  static const RealType _LN_PI;
-  static const RealType _PI2;
+  static const RealType _ln_pi;           /*!< Natural logarithm of pi */
+  static const RealType _pi2;             /*!< Pi^2 */
 
 private:
   param_type _par;
   std::uniform_real_distribution<RealType> _Uniform_;
   std::normal_distribution<RealType> _Gaussian_;
+  
+  static const RealType _interval_pivot;  /*!< Interval pivot point */
+  static const RealType _eps_r;           /*!< Effective zero bound */
+  static const RealType _lambda_0;        /*!< Non-random return with _eps_r */
 
   bool _rightmost_interval(
     const RealType& U,
@@ -134,7 +127,7 @@ private:
 
 template< class RealType >
 const RealType logistic_weight_distribution<RealType>::_interval_pivot =
-  4.0 / 3;
+  1.333333333333333333333333333333333333;
 
 
 template< class RealType >
@@ -145,17 +138,17 @@ template< class RealType >
 const RealType logistic_weight_distribution<RealType>::_lambda_0 =
   1.6454212694466686;
 // If the input residual is below _eps_r in magnitude, the return
-// value is non-random numerically
+// value is non-random numerically. I have only computed this out
+// to 16 digits
 
 
 template< class RealType >
-const RealType logistic_weight_distribution<RealType>::_LN_PI =
-  std::log(M_PI);
-
+const RealType logistic_weight_distribution<RealType>::_ln_pi =
+  1.144729885849400174143427351353058712;
 
 template< class RealType >
-const RealType logistic_weight_distribution<RealType>::_PI2 =
-  M_PI * M_PI;
+const RealType logistic_weight_distribution<RealType>::_pi2 =
+  9.869604401089358618834490999876151135;
 
 
 
@@ -245,14 +238,14 @@ bool logistic_weight_distribution<RealType>::_leftmost_interval(
   const RealType& lam,
   const int maxIt
 ) {
-  RealType X = -_PI2 / (2 * lam);
+  RealType X = -_pi2 / (2 * lam);
   const RealType H =
     0.5 * M_LN2
-    + 2.5 * _LN_PI
+    + 2.5 * _ln_pi
     - 2.5 * std::log(lam)
     + X
     + 0.5 * lam;
-  const RealType lnU = std::log(U), K = lam / _PI2;
+  const RealType lnU = std::log(U), K = lam / _pi2;
   RealType Z = 1, j = 0, A;
   bool terminate_subroutine = false;
   bool ok = false;
@@ -310,49 +303,53 @@ logistic_weight_distribution<RealType>::logistic_weight_distribution(
 };
 
 
+
+// --- Comparators ---------------------------------------------------
+
+
+template< class RealType >
+bool logistic_weight_distribution<RealType>::param_type::operator== (
+  const typename
+  logistic_weight_distribution<RealType>::param_type& other
+) const {
+  return _theta == other._theta;
+};
+
+
+template< class RealType >
+bool logistic_weight_distribution<RealType>::param_type::operator!= (
+  const typename
+  logistic_weight_distribution<RealType>::param_type& other
+) const {
+  return !(*this == other);
+};
+
+
+template< class RealType >
+bool logistic_weight_distribution<RealType>::operator== (
+  const logistic_weight_distribution<RealType>& other
+) const {
+  return _par == other._par;
+};
+
+template< class RealType >
+bool logistic_weight_distribution<RealType>::operator!= (
+  const logistic_weight_distribution<RealType>& other
+) const {
+  return !(*this == other);
+};
+
+
+
+
 // --- Friend Functions ----------------------------------------------
-
-template< class RealType >
-bool operator== (
-  const typename logistic_weight_distribution<RealType>::param_type& lhs,
-  const typename logistic_weight_distribution<RealType>::param_type& rhs
-) {
-  return lhs._theta == rhs._theta;
-};
-
-
-template< class RealType >
-bool operator!= (
-  const typename logistic_weight_distribution<RealType>::param_type& lhs,
-  const typename logistic_weight_distribution<RealType>::param_type& rhs
-) {
-  return !(lhs == rhs);
-};
-
-
-template< class RealType >
-bool operator== (
-  const logistic_weight_distribution<RealType>& lhs,
-  const logistic_weight_distribution<RealType>& rhs
-) {
-  return lhs._par == rhs._par;
-};
-
-template< class RealType >
-bool operator!= (
-  const logistic_weight_distribution<RealType>& lhs,
-  const logistic_weight_distribution<RealType>& rhs
-) {
-  return !(lhs == rhs);
-};
-
-
 
 
 template< class RealType, class CharT, class Traits >
 std::basic_ostream<CharT, Traits>& operator<< (
   std::basic_ostream<CharT, Traits>& ost,
-  const typename logistic_weight_distribution<RealType>::param_type& par
+  const typename
+  logistic_weight_distribution<RealType>::param_type& par
 ) {
   ost << par._theta;
   return ost;

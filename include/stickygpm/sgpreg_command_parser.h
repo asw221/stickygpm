@@ -49,6 +49,7 @@ namespace stickygpm {
     std::string mask_file() const;
     std::string output_file_base() const;
     std::string output_file( const std::string extension ) const;
+    std::string subset_file() const;
     unsigned int seed() const;
     const std::vector<T>& covariance_parameters() const;
     const std::vector<std::string>& clustering_random_effects_files() const;
@@ -75,6 +76,7 @@ namespace stickygpm {
     scalar_type _lsbp_sigma;
     std::string _clustering_covariates_file;
     std::string _covariates_file;
+    std::string _subset_file;
     // std::string _data_file_pattern;
     std::string _mask_file;
     std::string _output_basename;
@@ -82,6 +84,8 @@ namespace stickygpm {
     std::vector<T> _theta;
     std::vector<std::string> _clustering_random_effects_files;
     std::vector<std::string> _data_files;
+
+    void _subset_outcome_files();
   };  
 
   
@@ -122,6 +126,7 @@ void stickygpm::sgpreg_command_parser<T>::show_help() const {
 	    << "  --repulsion               float     Repulsive mixture parameter \n"
 	    << "  --samples                           MCMC/Flag: output 'all' samples \n"
 	    << "  --seed                     int      URNG seed \n"
+	    << "  --subset                 file/path  File: tokens to select outcomes \n"
 	    << "  --theta                   float...  Alias: --covariance \n"
 	    << "  --thin                     int      MCMC thinning factor \n"
 	    << "  --threads                  int      Threads to use (OpenMP) \n"
@@ -478,6 +483,23 @@ stickygpm::sgpreg_command_parser<T>::sgpreg_command_parser(
 	  _status = call_status::error;
 	}
       }  // seed
+      else if ( arg == "--subset" ) {
+	if ( i + 1 < argc ) {
+	  i++;
+	  _subset_file = argv[i];
+	  ifs.open( _subset_file, std::ifstream::in );
+	  if ( !ifs ) {
+	    std::cerr << "\nCould not read " << _subset_file << "\n";
+	    ifs.clear();
+	    _status = call_status::error;
+	  }
+	  ifs.close();
+	}
+	else {
+	  std::cerr << arg << " option requires one argument\n";
+	  _status = call_status::error;
+	}
+      }  // subset
       else if ( arg == "--thin" ) {
 	if ( i + 1 < argc ) {
 	  i++;
@@ -557,25 +579,32 @@ stickygpm::sgpreg_command_parser<T>::sgpreg_command_parser(
     sstream << "sgpreg_" << _seed;
     _output_basename = sstream.str();
   }
-  
+
+  _subset_outcome_files();
   
   if ( help_invoked() ) {
     show_help();
   }
   else {
     if ( _data_files.empty() ) {
-      std::cerr << "\n*** ERROR: "
-		<< " User must supply input data files (*.nii)\n";
+      if ( _subset_file.empty() ) {
+	std::cerr << "\n*** ERROR: "
+		  << " User must supply input data files (*.nii)\n\n";
+      }
+      else {
+	std::cerr << "\n*** ERROR: "
+		  << " No files match --subset tokens\n";
+      }
       _status = call_status::error;
     }
     if ( _covariates_file.empty() ) {
       std::cerr << "\n*** ERROR: "
-		<< " User must supply input covariate file (as *.csv)\n";
+		<< " User must supply input covariate file (as *.csv)\n\n";
       _status = call_status::error;
     }
     if ( _mask_file.empty() ) {
       std::cerr << "\n*** ERROR: "
-		<< " User must supply analysis mask (as *.nii)\n";
+		<< " User must supply analysis mask (as *.nii)\n\n";
       _status = call_status::error;      
     }
   }
@@ -583,7 +612,7 @@ stickygpm::sgpreg_command_parser<T>::sgpreg_command_parser(
 
   if ( error() ) {
     show_usage();
-    std::cerr << "\nSee sgpreg -h or --help for more information\n";
+    std::cerr << "See sgpreg -h or --help for more information\n";
   }
 };
 

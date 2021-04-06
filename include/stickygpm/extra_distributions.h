@@ -212,17 +212,19 @@ RealType extra_distributions::std_logistic_quantile(
   const RealType& prob
 ) {
   RealType q;
-  if ( prob < 0 || prob > 1 ) {
+  if ( prob < static_cast<RealType>( 0 ) ||
+       prob > static_cast<RealType>( 1 ) ) {
     throw std::domain_error("Logistic inverse CDF defined on (0, 1)");
   }
-  if ( prob == 0 || prob == 1 ) {
+  if ( prob == static_cast<RealType>( 0 ) ||
+       prob == static_cast<RealType>( 1 ) ) {
+#ifndef DNDEBUG
     std::cerr << "\t*** WARNING: std_logistic_quantile: Returning +/- Inf\n";
-    // q = std::numeric_limits<RealType>::infinity();
-    // q = std::numeric_limits<RealType>::max();
-    q = 30;
-    // Let F(x) denote the standard logistic CDF,
-    // F(30) = 0.99999999999990651922
-    if ( prob == 0 ) {
+#endif
+    q = 36.8;
+    // ^^ If F(x) denotes the standard logistic CDF,
+    // then F(36.8) = 0.9999999999999999
+    if ( prob == static_cast<RealType>( 0 ) ) {
       q = -q;
     }
   }
@@ -240,17 +242,18 @@ RealType extra_distributions::logistic_quantile(
   const RealType& location,
   const RealType& scale
 ) {
-  if ( prob <= 0 || prob >= 1 ) {
+  if ( prob <= static_cast<RealType>( 0 ) ||
+       prob >= static_cast<RealType>( 1 ) ) {
     std::string msg =
       std::string("Logistic inverse CDF: argument was ") +
       std::to_string(prob) +
       std::string(" [defined on (0, 1)]");
-    throw std::domain_error(msg);
+    throw std::domain_error( msg );
   }
-  if (scale <= 0) {
+  if ( scale <= static_cast<RealType>( 0 ) ) {
     throw std::domain_error("Logistic scale parameter must be > 0");
   }
-  return scale * std::log(prob / (1 - prob)) + location;
+  return scale * std::log( prob / (1 - prob) ) + location;
 };
 
 

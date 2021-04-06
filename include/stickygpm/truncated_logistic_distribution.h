@@ -13,24 +13,6 @@
 #define _TRUNCATED_LOGISTIC_DISTRIBUTION_
 
 
-template< class RealType = double >
-class truncated_logistic_distribution;
-
-
-template< class RealType >
-bool operator== (
-  const truncated_logistic_distribution<RealType>& lhs,
-  const truncated_logistic_distribution<RealType>& rhs
-);
-
-
-template< class RealType >
-bool operator!= (
-  const truncated_logistic_distribution<RealType>& lhs,
-  const truncated_logistic_distribution<RealType>& rhs
-);
-
-
 
 
 template< class RealType >
@@ -49,29 +31,22 @@ public:
     RealType _sigma;      // standard deviation
 
   public:
-    typedef truncated_logistic_distribution<RealType>
-      distribution_type;
-
     explicit param_type(
-      RealType location = 0.0, RealType scale = 1.0,
-      RealType lower = 0.0, RealType upper = 1e4
+      RealType location = 0,
+      RealType scale = 1,
+      RealType lower = 0,
+      RealType upper = 1e4
     );
 
-    RealType cdf_max() const;
-    RealType cdf_min() const;
-    RealType max() const;
+    RealType cdf_max()  const;
+    RealType cdf_min()  const;
+    RealType max()      const;
     RealType location() const;
-    RealType min() const;
-    RealType scale() const;
+    RealType min()      const;
+    RealType scale()    const;
 
-    friend bool operator== (
-      const param_type &lhs,
-      const param_type &rhs
-    );
-    friend bool operator!= (
-      const param_type &lhs,
-      const param_type &rhs
-    );
+    bool operator== ( const param_type& other ) const;
+    bool operator!= ( const param_type &other ) const;
 
     template< class CharT, class Traits >
     friend std::basic_ostream<CharT, Traits>& operator<< (
@@ -82,35 +57,33 @@ public:
 
 
   explicit truncated_logistic_distribution(
-    RealType location = 0.0,
-    RealType scale = 1.0,
-    RealType lower = 0.0,
+    RealType location = 0,
+    RealType scale = 1,
+    RealType lower = 0,
     RealType upper = 1e4
   );
   
-  explicit truncated_logistic_distribution(const param_type &par);
+  explicit truncated_logistic_distribution( const param_type &par );
 
   template< class Generator >
   RealType operator() (Generator &g);
 
-  RealType max() const;
-  RealType location() const;
-  RealType min() const;
-  RealType scale() const;
-  param_type param() const;
+  RealType   max()      const;
+  RealType   location() const;
+  RealType   min()      const;
+  RealType   scale()    const;
+  param_type param()    const;
 
   void param(const param_type &par);
   void reset();
 
-  friend bool operator==<RealType> (
-    const truncated_logistic_distribution<RealType> &lhs,
-    const truncated_logistic_distribution<RealType> &rhs
-  );
+  bool operator== (
+    const truncated_logistic_distribution<RealType>& other
+  ) const;
   
-  friend bool operator!=<RealType> (
-    const truncated_logistic_distribution<RealType> &lhs,
-    const truncated_logistic_distribution<RealType> &rhs
-  );
+  bool operator!= (
+    const truncated_logistic_distribution<RealType>& other
+  ) const;
 
   template< class CharT, class Traits >
   friend std::basic_ostream<CharT, Traits>& operator<< (
@@ -179,7 +152,7 @@ truncated_logistic_distribution
   RealType lower,
   RealType upper
 ) {
-  param(param_type(location, scale, lower, upper));
+  param( param_type(location, scale, lower, upper) );
 };
 
 
@@ -209,52 +182,55 @@ RealType truncated_logistic_distribution<RealType>::operator() (
 
 
 
-// --- Friend Functions ----------------------------------------------
+// --- Comparators ---------------------------------------------------
+
 
 template< class RealType >
-bool operator==(
+bool truncated_logistic_distribution<RealType>::param_type
+::operator== (
   const typename truncated_logistic_distribution
-    <RealType>::param_type& lhs,
-  const typename truncated_logistic_distribution
-    <RealType>::param_type& rhs
-) {
-  const bool paramsSame = (lhs._mu == rhs._mu) &&
-    (lhs._sigma == rhs._sigma);
-  const bool truncationSame = (lhs._low == rhs._low) &&
-    (lhs._high == rhs._high);
+    <RealType>::param_type& other
+) const {
+  const bool paramsSame = (_mu == other._mu) &&
+    (_sigma == other._sigma);
+  const bool truncationSame = (_low == other._low) &&
+    (_high == other._high);
   return paramsSame && truncationSame;
 };
 
 
 template< class RealType >
-bool operator!=(
+bool truncated_logistic_distribution<RealType>::param_type
+::operator!= (
   const typename truncated_logistic_distribution
-    <RealType>::param_type &lhs,
-  const typename truncated_logistic_distribution
-    <RealType>::param_type &rhs
-) {
-  return !(lhs == rhs);
+    <RealType>::param_type& other
+) const {
+  return !(*this == other);
 };
 
 
 
 template< class RealType >
-bool operator==(
-  const truncated_logistic_distribution<RealType> &lhs,
-  const truncated_logistic_distribution<RealType> &rhs
-) {
-  return lhs._par == rhs._par;
+bool truncated_logistic_distribution<RealType>::operator== (
+  const truncated_logistic_distribution<RealType>& other
+) const {
+  return _par == other._par;
 };
 
 
 
 template< class RealType >
-bool operator!=(
-  const truncated_logistic_distribution<RealType> &lhs,
-  const truncated_logistic_distribution<RealType> &rhs
-) {
-  return !(lhs == rhs);
+bool truncated_logistic_distribution<RealType>::operator!= (
+  const truncated_logistic_distribution<RealType>& other
+) const {
+  return !(*this == other);
 };
+
+
+
+
+
+// --- Friend Functions ----------------------------------------------
 
 
 template< class RealType, class CharT, class Traits >
