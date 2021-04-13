@@ -218,8 +218,8 @@ std::vector<ResultType> stickygpm::get_data_from_within_mask_impl(
   MaskType* data_ptr_mask = (MaskType*)mask->data;
   int stride, voxcount = 0;
   std::vector<ResultType> _data;
-  // _data.reserve(nvox_mask);
-  _data.assign( nvox_mask, 0 );
+  _data.reserve(nvox_mask);
+  // _data.assign( nvox_mask, 0 );
   for (int k = 0; k < mask->nz; k++) {  // Column-major order
     ijk1_mask.coeffRef(2) = k;
     for (int j = 0; j < mask->ny; j++) {
@@ -234,8 +234,8 @@ std::vector<ResultType> stickygpm::get_data_from_within_mask_impl(
 	       ) {
 	    stride = nx * ny * ijk.coeffRef(2) +
 	      nx * ijk.coeffRef(1) + ijk.coeffRef(0);
-	    // _data.push_back( ResultType(*(data_ptr + stride)) );
-	    _data[voxcount] = ResultType(*(data_ptr + stride));
+	    _data.push_back( ResultType(*(data_ptr + stride)) );
+	    // _data[voxcount] = ResultType(*(data_ptr + stride));
 	  }
 	  voxcount++;
 	}
@@ -243,7 +243,7 @@ std::vector<ResultType> stickygpm::get_data_from_within_mask_impl(
       }
     }
   }
-  // _data.shrink_to_fit();
+  _data.shrink_to_fit();
   return _data;
 };
   

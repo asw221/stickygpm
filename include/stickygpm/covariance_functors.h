@@ -21,19 +21,19 @@ namespace stickygpm {
   // Put these somewhere else:
   template< typename FuncT, typename T = typename FuncT::result_type >
   T gradient_x( const FuncT& f, const T x, const T h = 1e-6 ) {
-    assert( h > 0 );
+    assert( h > static_cast<T>(0) );
     return (f(x + h) - f(x - h)) / (2 * h);
   };
 
   template< typename FuncT, typename T = typename FuncT::result_type >
   T gradient_xf( const FuncT& f, const T x, const T h = 1e-6 ) {
-    assert( h > 0 );
+    assert( h > static_cast<T>(0) );
     return (f(x + h) - f(x)) / h;
   };
 
   template< typename FuncT, typename T = typename FuncT::result_type >
   T gradient_xb( const FuncT& f, const T x, const T h = 1e-6 ) {
-    assert( h > 0 );
+    assert( h > static_cast<T>(0) );
     return (f(x) - f(x - h)) / h;
   };
 

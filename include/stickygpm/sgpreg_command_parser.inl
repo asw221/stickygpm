@@ -250,6 +250,5 @@ void stickygpm::sgpreg_command_parser<T>::_subset_outcome_files() {
 		<< "\n";
     }
     
-  }
-  // end - if ( !_subset_file.empty() && ...
+  }  // end - if ( !_subset_file.empty() && ...
 };

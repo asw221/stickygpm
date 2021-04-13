@@ -221,9 +221,9 @@ RealType extra_distributions::std_logistic_quantile(
 #ifndef DNDEBUG
     std::cerr << "\t*** WARNING: std_logistic_quantile: Returning +/- Inf\n";
 #endif
-    q = 36.8;
+    q = 36.72;
     // ^^ If F(x) denotes the standard logistic CDF,
-    // then F(36.8) = 0.9999999999999999
+    // then F(36.72) = 0.9999999999999998
     if ( prob == static_cast<RealType>( 0 ) ) {
       q = -q;
     }

@@ -101,7 +101,7 @@ namespace stickygpm {
       ( ata +
 	xtx.size() * log_det_K +
 	locations.rows() * xtx.template cast<double>()
-	.array().log().sum()
+	  .array().log().sum()
 	);
     // auto stop_t = std::chrono::high_resolution_clock::now();
     // auto diff_t = std::chrono::duration_cast<std::chrono::microseconds>

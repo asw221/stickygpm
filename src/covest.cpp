@@ -75,24 +75,19 @@ int main ( int argc, char* argv[] ) {
     theta = _cov_ptr_->param();
 
   
-  if ( code == 0) {
+  if ( code == 0 ) {
     std::cout << "<Computation took "
 	      << ((double)diff_t.count() / 1e6)
 	      << " sec>"
 	      << std::endl;
     std::cout << theta << std::endl;
-    // std::cout << "\u03B8" << " = (";
-    // for ( unsigned i = 0; i < theta.size(); i++ ) {
-    //   std::cout << theta[i] << ", ";
-    // }
-    // std::cout << "\b\b) " << std::endl;
   }
   else {
     std::cerr << "covest: errors occurred" << std::endl;
     return 1;
   }
 
-}
+}  // main
 
 
 

@@ -51,7 +51,11 @@ public:
     RealType _theta;
     
   public:
+    using distribution_type = logistic_weight_distribution<RealType>;
+
+    param_type( const param_type& other );
     explicit param_type( RealType theta = 1 );
+    
     RealType max() const;
     RealType min() const;
     RealType theta() const;
@@ -67,11 +71,21 @@ public:
   };
 
 
+  logistic_weight_distribution() :
+    logistic_weight_distribution(1) { ; }
+  
   explicit logistic_weight_distribution( RealType theta = 1 );
   explicit logistic_weight_distribution( const param_type &par );
 
   template< class Generator >
   RealType operator() ( Generator& g, const int maxIt = 100 );
+  
+  template< class Generator >
+  RealType operator() (
+    Generator& g,
+    const param_type& params,
+    const int maxIt = 100
+  );
 
   RealType theta() const;
   param_type param() const;
@@ -152,13 +166,26 @@ const RealType logistic_weight_distribution<RealType>::_pi2 =
 
 
 
+
 template< class RealType >
 template< class Generator >
 RealType logistic_weight_distribution<RealType>::operator() (
   Generator& g,
   const int maxIt
 ) {
-  const RealType r = std::sqrt( _par.theta() );
+  return operator() ( g, _par, maxIt );
+};
+
+
+template< class RealType >
+template< class Generator >
+RealType logistic_weight_distribution<RealType>::operator() (
+  Generator& g,
+  const typename
+  logistic_weight_distribution<RealType>::param_type& params,
+  const int maxIt
+) {
+  const RealType r = std::sqrt( params.theta() );
   if ( r <= _eps_r ) {
     return _lambda_0;
   }
@@ -275,6 +302,16 @@ bool logistic_weight_distribution<RealType>::_leftmost_interval(
 
 
 // --- Constructors & Destructors ------------------------------------
+
+
+template< class RealType >
+logistic_weight_distribution<RealType>::param_type::param_type(
+  const typename
+  logistic_weight_distribution<RealType>::param_type& other
+) {
+  _theta = other._theta;
+};
+
 
 template< class RealType >
 logistic_weight_distribution<RealType>::param_type::param_type(

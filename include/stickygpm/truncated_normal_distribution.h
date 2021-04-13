@@ -18,7 +18,6 @@ class truncated_normal_distribution {
   
 public:
   typedef RealType result_type;
-  // tyepname const RealType Inf = std::numeric_limits<RealType>::infinity();
 
   class param_type {
   private:
@@ -30,6 +29,10 @@ public:
     RealType _sigma;      // standard deviation
 
   public:
+    using distribution_type = 
+      truncated_normal_distribution<RealType>;
+
+    param_type( const param_type& other );
     explicit param_type(
       RealType mean  = 0,
       RealType sd    = 1,
@@ -55,6 +58,9 @@ public:
   };
 
 
+  truncated_normal_distribution() :
+    truncated_normal_distribution(0) { ; }
+  
   explicit truncated_normal_distribution(
     RealType mean  = 0,
     RealType sd    = 1,
@@ -65,7 +71,10 @@ public:
   explicit truncated_normal_distribution( const param_type &par );
 
   template< class Generator >
-  RealType operator() (Generator &g);
+  RealType operator() ( Generator &g );
+
+  template< class Generator >
+  RealType operator() ( Generator &g, const param_type& params );
 
   RealType   max()    const;
   RealType   mean()   const;
@@ -95,9 +104,8 @@ public:
 private:  
   param_type _par;
   std::uniform_real_distribution<double> _Uniform_;
-  
 };
-
+// end - class truncated_normal_distribution
 
 
 
@@ -105,6 +113,21 @@ private:
 
 
 // --- Constructors & Destructors ------------------------------------
+
+
+template< class RealType >
+truncated_normal_distribution<RealType>::param_type::param_type(
+  const typename truncated_normal_distribution<RealType>
+  ::param_type& other
+) {
+  _high = other._high;
+  _low  = other._low;
+  _mu   = other._mu;
+  _prob_high = other._prob_high;
+  _prob_low  = other._prob_low;
+  _sigma     = other._sigma;
+};
+
 
 template< class RealType >
 truncated_normal_distribution<RealType>::param_type::param_type(
@@ -166,11 +189,23 @@ template< class Generator >
 RealType truncated_normal_distribution<RealType>::operator() (
   Generator &g
 ) {
-  const RealType x = (RealType)_Uniform_(g) *
-    (_par.cdf_max() - _par.cdf_min()) + _par.cdf_min();
+  return operator() ( g, _par );
+};
+
+
+template< class RealType >
+template< class Generator >
+RealType truncated_normal_distribution<RealType>::operator() (
+  Generator &g,
+  const typename truncated_normal_distribution<RealType>
+  ::param_type& params
+) {
+  const RealType x = static_cast<RealType>( _Uniform_(g) ) *
+    (params.cdf_max() - params.cdf_min()) + params.cdf_min();
   return extra_distributions::std_normal_quantile(x) * stddev()
     + mean();
 };
+
 
 
 

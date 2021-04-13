@@ -31,6 +31,10 @@ public:
     RealType _sigma;      // standard deviation
 
   public:
+    using distribution_type =
+      truncated_logistic_distribution<RealType>;
+
+    param_type( const param_type& other );
     explicit param_type(
       RealType location = 0,
       RealType scale = 1,
@@ -54,8 +58,12 @@ public:
       const param_type &pt
     );
   };
+  // end class param_type
 
 
+  truncated_logistic_distribution() :
+    truncated_logistic_distribution(0) { ; }
+  
   explicit truncated_logistic_distribution(
     RealType location = 0,
     RealType scale = 1,
@@ -67,6 +75,9 @@ public:
 
   template< class Generator >
   RealType operator() (Generator &g);
+
+  template< class Generator >
+  RealType operator() ( Generator &g, const param_type& params );
 
   RealType   max()      const;
   RealType   location() const;
@@ -96,9 +107,8 @@ public:
 private:  
   param_type _par;
   std::uniform_real_distribution<double> _Uniform_;
-  
 };
-
+// end - class truncated_logistic_distribution
 
 
 
@@ -106,6 +116,23 @@ private:
 
 
 // --- Constructors & Destructors ------------------------------------
+
+
+
+template< class RealType >
+truncated_logistic_distribution<RealType>::param_type::param_type(
+  const typename truncated_logistic_distribution<RealType>
+  ::param_type& other
+) {
+    _high = other._high;
+    _low  = other._low;
+    _mu   = other._mu;
+    _prob_high = other._prob_high;
+    _prob_low  = other._prob_low;
+    _sigma     = other._sigma;
+};
+
+
 
 template< class RealType >
 truncated_logistic_distribution<RealType>::param_type::param_type(
@@ -173,11 +200,26 @@ template< class Generator >
 RealType truncated_logistic_distribution<RealType>::operator() (
   Generator &g
 ) {
-  const RealType x = (RealType)_Uniform_(g) *
-    (_par.cdf_max() - _par.cdf_min()) + _par.cdf_min();
-  const RealType p = std::max((RealType)0, std::min((RealType)1, x));
-  return extra_distributions::std_logistic_quantile(p) * scale() +
-    location();
+  return operator() ( g, _par );
+};
+
+
+
+template< class RealType >
+template< class Generator >
+RealType truncated_logistic_distribution<RealType>::operator() (
+  Generator &g,
+  const typename truncated_logistic_distribution<RealType>
+  ::param_type& params
+) {
+  const RealType x = static_cast<RealType>( _Uniform_(g) ) *
+    (params.cdf_max() - params.cdf_min()) + params.cdf_min();
+  const RealType p = std::max(
+    static_cast<RealType>(0),
+    std::min( static_cast<RealType>(1), x )
+  );
+  return extra_distributions::std_logistic_quantile(p) * params.scale() +
+    params.location();  
 };
 
 
