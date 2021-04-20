@@ -52,10 +52,10 @@ public:
   outer_rlsbp() { ; }
   outer_rlsbp(
     const stickygpm::stickygpm_regression_data<scalar_type>& data,
-    const int trunc = 20,                   // LSBP truncation
+    const int trunc = 20,         // LSBP truncation
     const scalar_type sigma = 1,  // (Normal) prior scale for W
     const scalar_type mu0 = 0,    // (Normal) prior loc. for W
-    const double tau = 0
+    const double tau = 0          // Repulsion parameter
   );
 
 
@@ -130,6 +130,7 @@ public:
 private:
 
   bool _Initialized_;  // <- unused (yet)
+  bool _has_intercept;
   double _ref_log_posterior;
   double _log_prior;
   double _log_likelihood;
@@ -155,6 +156,8 @@ private:
   // Parameters related to updating of the logistic coefficients
   matrix_type _sigma2_inv;   // Prior scale of W  
   matrix_type _w_mu0;        // Prior means of W
+  matrix_type _loc_shrink;
+  vector_type _glb_shrink;
   vector_type _eta;
   vector_type _lambda_inv;
   //
@@ -184,7 +187,7 @@ private:
   );
   void _update_logistic_hyperparameters(
     const std::vector<Eigen::VectorXi>& random_effects_indices,
-    const bool lsbp_has_intercept = true
+    const std::vector<Eigen::VectorXi>& fixed_effects_indices
   );
 
   
@@ -215,6 +218,8 @@ outer_rlsbp<InnerModelType>::outer_rlsbp(
     throw std::domain_error("LSBP truncation should be > 0");
   }
   _Initialized_ = false;
+  _has_intercept = data.lsbp_has_global_intercept();
+  
   _ref_log_posterior = -std::numeric_limits<double>::infinity();
   _log_prior = -std::numeric_limits<double>::infinity();
   _log_likelihood = -std::numeric_limits<double>::infinity();
@@ -232,7 +237,7 @@ outer_rlsbp<InnerModelType>::outer_rlsbp(
 
   _w_mu0 = matrix_type::Zero( P, trunc );
   _sigma2_inv = matrix_type::Constant( P, trunc, 1 / (sigma * sigma) );
-  if ( data.lsbp_has_global_intercept() ) {
+  if ( _has_intercept ) {
     for ( int j = 0; j < trunc; j++ ) {
       // _w_mu0.coeffRef(0, j) = mu0 / (sigma * sigma);
       // _sigma2_inv.coeffRef(0, j) = 1e-4;  // don't penalize intercepts
@@ -241,6 +246,10 @@ outer_rlsbp<InnerModelType>::outer_rlsbp(
       _w_mu0.coeffRef(0, j) = mu0 * _sigma2_inv.coeffRef(0, j);
     }
   }
+  //
+  _loc_shrink = _sigma2_inv;
+  _glb_shrink = vector_type::Ones( _sigma2_inv.cols() );
+  //
   // _X = X;
   _LoCoeffs_W = matrix_type::Zero( P, trunc );
   std::normal_distribution<scalar_type> Gaussian( (scalar_type)0, sigma );
@@ -682,17 +691,24 @@ double outer_rlsbp<InnerModelType>::update(
   for ( int i = 0; i < n_lsbp_updates_; i++ ) {
     _update_logistic_coefficients( data );
   }
+  //
+  // std::cout << "\n(" << _log_prior << ")\n";
+  //
   _log_prior += -0.5 *
     ( _LoCoeffs_W.array() * _sigma2_inv.array().sqrt() ).matrix()
     .template cast<double>().colwise().squaredNorm().sum();
+  //
+  // std::cout << _sigma2_inv << "\n";
+  // std::cout << "\n(" << _log_prior << ")\n";
+  //
   _log_prior += 0.5 *
-    _sigma2_inv.array().log().template cast<double>().sum();
+    _sigma2_inv.array().template cast<double>().log().sum();
   // std::cout << "W =\n" << _LoCoeffs_W
   // 	    << "\n\nmu0 =\n" << _w_mu0 << "\n\nsigma0 =\n"
   // 	    << _sigma2_inv.cwiseInverse() << std::endl;
   _update_logistic_hyperparameters(
     data.lsbp_random_effects_indices(),
-    data.lsbp_has_global_intercept()
+    data.lsbp_fixed_effects_indices()
   );
   // stop_t = std::chrono::high_resolution_clock::now();
   // duration = std::chrono::duration_cast<std::chrono::microseconds>
@@ -1109,19 +1125,19 @@ void outer_rlsbp<InnerModelType>::_update_logistic_coefficients(
     }
     else {  // Either no or all observations are assigned to cluster
       if ( n_in_clust == 0) {
-      	lower = -1e3;
+      	lower = -1e2;
       	upper = (scalar_type)extra_distributions
       	  ::std_logistic_quantile( (double)1 / (N + 1) );
       }
       else {
       	lower = (scalar_type)extra_distributions
       	  ::std_logistic_quantile( (double)N / (N + 1) );
-      	upper = 1e3;
+      	upper = 1e2;
       }
         // _w_mu0.coeffRef(0),
       	// 1 / _sigma2_inv.coeffRef(0),
       _LoCoeffs_W.col(j) = vector_type::Zero( _LoCoeffs_W.rows() );
-      if ( data.lsbp_has_global_intercept() ) {
+      if ( _has_intercept ) {
 	truncated_normal_distribution<scalar_type> TNorm(
           (scalar_type)0,  // _w_mu0.coeffRef(0)
 	  (scalar_type)1,
@@ -1166,9 +1182,9 @@ void outer_rlsbp<InnerModelType>::_update_logistic_coefficients(
 template< class InnerModelType >
 void outer_rlsbp<InnerModelType>::_update_logistic_hyperparameters(
   const std::vector<Eigen::VectorXi>& random_effects_indices,
-  const bool lsbp_has_intercept
+  const std::vector<Eigen::VectorXi>& fixed_effects_indices
 ) {
-  // typedef std::vector<Eigen::VectorXi>::const_iterator re_iter;
+  // Update random effects hyperparameters
   if ( !random_effects_indices.empty() ) {
     std::normal_distribution<scalar_type> Gaussian(0, 1);
     scalar_type w, sum_w, sum_w2;
@@ -1188,7 +1204,7 @@ void outer_rlsbp<InnerModelType>::_update_logistic_hyperparameters(
 	    sum_w += w;
 	    sum_w2 += w * w;
 	  }
-	  if ( lsbp_has_intercept ) {
+	  if ( _has_intercept ) {
 	    mu = static_cast<scalar_type>( 0 );
 	  }
 	  else {
@@ -1216,6 +1232,62 @@ void outer_rlsbp<InnerModelType>::_update_logistic_hyperparameters(
     
   }
   // if ( !random_effects_indices.empty() )
+
+  
+  // Update fixed effects hyperparameters (horseshoe)
+  const Eigen::VectorXi& fei = fixed_effects_indices[0];
+  if ( fei.size() > 0 ) {
+    scalar_type nui, xii;
+    
+    for ( int j = 0; j < _loc_shrink.cols(); j++ ) {
+
+      if ( !_cluster_indices[j].empty() ) {
+	scalar_type sum_ls = 0;
+	scalar_type gs = _glb_shrink.coeff(j);
+      
+	for ( int i_fei = 0; i_fei < fei.size(); i_fei++ ) {
+	
+	  int i = fei[i_fei];
+	  scalar_type ls = _loc_shrink.coeff(i, j);
+	  scalar_type Wij_sq = _LoCoeffs_W.coeff(i, j) *
+	    _LoCoeffs_W.coeff(i, j);
+	
+	  std::gamma_distribution<scalar_type>
+	    Gamma_nu( 1, 1 / (1 + ls) );
+	  nui = Gamma_nu( stickygpm::rng() );
+	
+	  std::gamma_distribution<scalar_type>
+	    Gamma_ls( 1, 1 / (nui + Wij_sq * gs / 2) );
+	  ls = Gamma_ls( stickygpm::rng() );
+	  ls = isnan( ls ) ?
+	    std::numeric_limits<scalar_type>::max() : ls;
+	  ls = std::min(ls, std::numeric_limits<scalar_type>::max());
+	
+	  //
+	  sum_ls += Wij_sq * ls;
+	  _loc_shrink.coeffRef(i, j) = ls;
+	}
+      
+	std::gamma_distribution<scalar_type>
+	  Gamma_xi( 1, 1 / (1 + gs) );
+	xii = Gamma_xi( stickygpm::rng() );
+      
+	std::gamma_distribution<scalar_type>
+	  Gamma_gs( (fei.size() + 1) / 2,
+		    1 / (xii + sum_ls / 2) );
+	gs = Gamma_gs( stickygpm::rng() );
+	gs = std::min(gs, std::numeric_limits<scalar_type>::max());
+	//
+	_glb_shrink.coeffRef(j) = gs;
+	//
+	for ( int i_fei = 0; i_fei < fei.size(); i_fei++ ) {
+	  int i = fei[i_fei];
+	  _sigma2_inv.coeffRef( i, j ) = 
+	    ( _loc_shrink.coeff(i, j) * _glb_shrink.coeff(j) );
+	}
+      }  // if ( !_cluster_indices[j].empty() )
+    }    // for ( int j = 0; ...
+  }      // if ( fei.size() > 0 )
 };
 
 

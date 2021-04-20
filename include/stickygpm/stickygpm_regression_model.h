@@ -13,7 +13,7 @@
 #include "stickygpm/extra_distributions.h"
 #include "stickygpm/utilities.h"
 #include "stickygpm/nifti_manipulation.h"
-#include "stickygpm/outer_rlsbp.h"
+#include "stickygpm/outer_rlsbp2.h"                // <- *** 2
 #include "stickygpm/projected_gp_regression2.h"    // <- *** 2
 #include "stickygpm/stickygpm_regression_data.h"
 #include "stickygpm/vector_summation.h"
@@ -58,7 +58,8 @@ namespace stickygpm {
 
       bool write_posterior_summaries(
         ::nifti_image* const mask,
-	const std::string basename
+	const std::string basename,
+	const matrix_type& knot_locations
       ) const;
 
 
@@ -315,7 +316,9 @@ template< typename T >
 bool stickygpm::stickygpm_regression_model<T>::output
 ::write_posterior_summaries(
   ::nifti_image* const mask,
-  const std::string basename
+  const std::string basename,
+  const typename stickygpm::stickygpm_regression_model<T>
+    ::matrix_type& knot_locations
 ) const {
   const std::string sep = "\n\t";
   std::string failed = "";
@@ -427,6 +430,20 @@ bool stickygpm::stickygpm_regression_model<T>::output
     failed = failed + sep + sigma_file;
   }
 
+
+  // Write knot locations
+  std::string knot_file = basename + std::string("_knots.nii.gz");
+  try {
+    ::nifti_image* knot_img =
+      stickygpm::nifti_image_read( sigma_file, 1 );
+    stickygpm::make_knot_image( knot_img, knot_locations );
+    stickygpm::nifti_image_write( knot_img, knot_file );
+    ::nifti_image_free( knot_img );
+    std::cout << knot_file << " written!" << std::endl;
+  }
+  catch (...) {
+    failed = failed + sep + knot_file;
+  }
 
   // If any writes failed, print warning:
   if ( !failed.empty() ) {
@@ -708,10 +725,10 @@ void stickygpm::stickygpm_regression_model<T>::run_mcmc(
 	loglik = _lsbp_.log_likelihood();
       }
       std::cout << "[" << iter << "]  LogPost: "
-		<< ( loglik + _lsbp_.log_prior() )
-		<< "  (" << "\u03B1" << " = "
-		<< mhrate << ")"
+		<< loglik << " + " << _lsbp_.log_prior()
+		<< "  (\u03B1 = " << mhrate << ")"
 		<< "  ~  ";
+      // << ( loglik + _lsbp_.log_prior() )
       _lsbp_.print_cluster_sizes( std::cout );
       std::cout << std::endl;
       //
@@ -748,7 +765,11 @@ bool stickygpm::stickygpm_regression_model<T>
   ::nifti_image* const mask
 ) const {
   const bool s =
-    _output_.write_posterior_summaries( mask, _output_base );
+    _output_.write_posterior_summaries(
+      mask,
+      _output_base,
+      _gp_basis_ptr_->knots()
+    );
   //
   std::cout << "\nCluster Occupancy:\n"
 	    << "------------------\n";

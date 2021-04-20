@@ -1,7 +1,6 @@
 
 find_package(Boost COMPONENTS system filesystem REQUIRED)
 find_package(Eigen3 3.3 REQUIRED NO_MODULE)
-## find_package(FFTW REQUIRED)
 find_package(NLOPT REQUIRED)
 find_package(OpenMP REQUIRED)
 find_package(ZLIB REQUIRED)
@@ -50,6 +49,7 @@ target_link_libraries(sgpreg Boost::filesystem Eigen3::Eigen
 		libniftiio.a libznz.a ZLIB::ZLIB)
 set_target_properties(sgpreg PROPERTIES
 		RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+## target_compile_definitions(sgpreg PUBLIC EIGEN_DONT_PARALLELIZE)
 
 
 ## --- threshold_nifti -----------------------------------------------

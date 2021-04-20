@@ -564,6 +564,30 @@ bool stickygpm::same_data_types(
 
 
 
+void stickygpm::set_zero( ::nifti_image* const nii ) {
+  if (stickygpm::is_float(nii))
+    stickygpm::set_zero_impl<float>(nii);
+  else if (stickygpm::is_double(nii))
+    stickygpm::set_zero_impl<double>(nii);
+  else
+    throw std::runtime_error(
+      "set_zero: unrecognized image data type");
+};
+
+
+
+template< typename ImageType >
+void stickygpm::set_zero_impl( ::nifti_image* const nii ) {
+  const int nvox = (int)nii->nvox;
+  ImageType* data_ptr = (ImageType*)nii->data;
+  for (int i = 0; i < nvox; ++i, ++data_ptr) {
+    *data_ptr = (ImageType)0;
+  }
+};
+
+
+
+
 
 stickygpm::qform_type stickygpm::sform_matrix(
   const ::nifti_image* const img

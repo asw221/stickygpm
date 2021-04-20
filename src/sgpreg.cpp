@@ -11,8 +11,6 @@
 #include "stickygpm/utilities.h"
 #include "stickygpm/nifti_manipulation.h"
 #include "stickygpm/sgpreg_command_parser.h"
-// #include "stickygpm/outer_lsbp.h"
-// #include "stickygpm/projected_gp_regression.h"
 #include "stickygpm/stickygpm_regression_data.h"
 #include "stickygpm/stickygpm_regression_model.h"
 
@@ -86,7 +84,7 @@ int main ( int argc, char* argv[] ) {
     inputs.lsbp_intercept()
   );
   if ( !inputs.clustering_covariates_file().empty() ) {
-    _data_.lsbp_append_covariates( inputs.clustering_covariates_file() );
+    _data_.lsbp_append_fixed_effects( inputs.clustering_covariates_file() );
   }
   if ( !inputs.clustering_random_effects_files().empty() ) {
     for ( std::string fname : inputs.clustering_random_effects_files() ) {

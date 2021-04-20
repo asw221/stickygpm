@@ -23,14 +23,8 @@ bool stickygpm::initialize_temporary_directory() {
   std::lock_guard<std::mutex> _lock(stickygpm::__internals::_MTX_);
   boost::filesystem::create_directory(stickygpm::cache_dir());
   return boost::filesystem::is_directory(stickygpm::cache_dir());
-  // boost::filesystem::create_directory(stickygpm::__internals::_TEMP_DIR_);
-  // return boost::filesystem::is_directory(stickygpm::__internals::_TEMP_DIR_);
 };
 
-
-stickygpm::path stickygpm::fftw_wisdom_file() {
-  return stickygpm::__internals::_FFTW_WISDOM_FILE_;
-};
 
 
 stickygpm::__internals::rng_type& stickygpm::rng() {
@@ -89,58 +83,6 @@ stickygpm::path stickygpm::utilities::home_directory() {
 
 
 
-std::vector<std::string> stickygpm::utilities::list_files(
-  const std::string path
-) {
-  const std::string _home_shorthand = "^~([\\\\/]{1,})";
-  const std::string _home =
-    ( stickygpm::utilities::home_directory().string() +
-     stickygpm::path::preferred_separator );
-  
-  std::string path_st = std::regex_replace(
-    path, std::regex(_home_shorthand), _home);
-  
-  const stickygpm::path _path(path_st);
-  stickygpm::path dired_dir = _path.branch_path();
-  std::string filt = _path.filename().string();
-
-  std::vector<std::string> matching_files;
-
-
-  // Replace literal "."s with "\."
-  filt = std::regex_replace(
-    filt, std::regex("(.*)\\.(.*)"), "$1\\.$2");
-  // ... and modify any wildcard characters
-  filt = std::regex_replace(filt, std::regex("\\*"), ".*");
-
-  try {
-
-    std::regex file_filter(filt);
-    std::smatch ___;
-    bool is_file, matches_filter;
-    boost::filesystem::directory_iterator dir_end;
-      // ^^ default c'tor is past the end
-
-    for ( boost::filesystem::directory_iterator it(dired_dir);
-	  it != dir_end; ++it ) {
-
-      is_file = boost::filesystem::is_regular_file( it->status() );
-      matches_filter = std::regex_match(
-        it->path().filename().string(), ___, file_filter );
-
-      if ( is_file && matches_filter )
-	matching_files.push_back( it->path().string() );
-      
-    } 
-  }
-  catch (...) {
-    std::cout << "Not found: " << dired_dir.string() << std::endl;
-    throw std::runtime_error("Could not locate directory");
-  }
-   
-  std::sort(matching_files.begin(), matching_files.end());
-  return matching_files;
-};
 
 
 

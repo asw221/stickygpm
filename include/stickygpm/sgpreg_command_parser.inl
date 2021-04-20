@@ -194,7 +194,7 @@ void stickygpm::sgpreg_command_parser<T>::_subset_outcome_files() {
 
     std::vector< std::vector<std::string> > tokens =
       stickygpm::csv_reader<std::string>::read_file( _subset_file );
-    
+
     std::vector<std::string> subset;
     subset.reserve( _data_files.size() );
     // ^^ Reserve to size of _data_files for cases when multiple
@@ -217,7 +217,7 @@ void stickygpm::sgpreg_command_parser<T>::_subset_outcome_files() {
 	    // Only push_back _data_files[j] if not already in subset
 	    int k = 0;
 	    bool duplicated = false;
-	    while ( k < (int)subset.size() && !duplicated ) {
+	    while ( k < matched_tokens && !duplicated ) {
 	      duplicated = subset[k] == _data_files[j];
 	      k++;
 	    }

@@ -20,7 +20,6 @@ namespace stickygpm {
 
   bool initialize_temporary_directory();
   
-  stickygpm::path fftw_wisdom_file();
   stickygpm::__internals::rng_type& rng();
   
   int set_number_of_threads( const int threads );
@@ -36,9 +35,6 @@ namespace stickygpm {
     return stickygpm::__internals::_MONITOR_;
   };
 
-
-  
-
   /*! @} */
 
   
@@ -47,15 +43,10 @@ namespace stickygpm {
     /*! @addtogroup Stickygpm
      * @{
      */
-
     
     bool file_exists( const std::string &fname );
     
     stickygpm::path home_directory();
-
-
-    std::vector<std::string> list_files( const std::string dir );
-
 
     
 

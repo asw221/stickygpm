@@ -56,18 +56,19 @@ namespace stickygpm {
 
     const matrix_type& mask_locations() const;
 
+    const lsbp_index_type& lsbp_fixed_effects_indices() const;
     const lsbp_index_type& lsbp_random_effects_indices() const;
     
     bool lsbp_has_global_intercept() const;
     
 
-    void lsbp_append_covariates(
+    void lsbp_append_fixed_effects(
       const std::string covariates_file
     );
     void lsbp_append_random_effects(
       const std::string covariates_file
     );
-    void finalize_lsbp_covariates( const RealType eps = 1e-4 );
+    // void finalize_lsbp_covariates( const RealType eps = 1e-4 );
     
     
   private:
@@ -84,8 +85,14 @@ namespace stickygpm {
 
     matrix_type _image_mask_locations;
 
-    std::vector<Eigen::VectorXi> _Z_random_effects_indices;
+    lsbp_index_type _Z_fixed_effects_indices;
+    lsbp_index_type _Z_random_effects_indices;
 
+    
+    void _lsbp_append_covariates(
+      const std::string covariates_file
+    );
+    
     void _read_outcome_data(
       const std::vector<std::string>& outcome_files,
       const std::string mask_file
@@ -118,6 +125,8 @@ stickygpm::stickygpm_regression_data<RealType>::stickygpm_regression_data(
     _Z = matrix_type::Constant(n(), 1, 1);
   }
 
+  _Z_fixed_effects_indices.assign(1, Eigen::VectorXi(0));
+  
   _read_outcome_data( outcome_files, mask_file );
 };
 
@@ -200,6 +209,15 @@ stickygpm::stickygpm_regression_data<RealType>
 
 
 
+template< typename RealType >
+const typename
+stickygpm::stickygpm_regression_data<RealType>::lsbp_index_type&
+stickygpm::stickygpm_regression_data<RealType>
+::lsbp_fixed_effects_indices() const {
+  return _Z_fixed_effects_indices;
+};
+
+
 
 template< typename RealType >
 const typename
@@ -222,7 +240,7 @@ bool stickygpm::stickygpm_regression_data<RealType>
 
 template< typename RealType >
 void stickygpm::stickygpm_regression_data<RealType>
-::lsbp_append_covariates(
+::_lsbp_append_covariates(
   const std::string covariates_file
 ) {
   matrix_type Ztemp = stickygpm::read_csv<scalar_type>(
@@ -253,11 +271,34 @@ void stickygpm::stickygpm_regression_data<RealType>
 
 template< typename RealType >
 void stickygpm::stickygpm_regression_data<RealType>
+::lsbp_append_fixed_effects(
+  const std::string covariates_file
+) {
+  const int p0 = _Z.cols();
+  _lsbp_append_covariates( covariates_file );
+  const int dp = _Z.cols() - p0;
+  Eigen::VectorXi& ind = _Z_fixed_effects_indices[0];
+  if ( _Z_has_intercept  &&  ind == Eigen::VectorXi(0) ) {
+    ind = Eigen::VectorXi::LinSpaced( dp, p0, p0 + dp - 1 );
+  }
+  else {
+    ind.conservativeResize(p0 + dp);
+    ind.tail( dp ) =
+      Eigen::VectorXi::LinSpaced( dp, p0, p0 + dp - 1 );
+  }
+  // std::cout << ind << std::endl;
+};
+
+
+
+
+template< typename RealType >
+void stickygpm::stickygpm_regression_data<RealType>
 ::lsbp_append_random_effects(
   const std::string covariates_file
 ) {
   const int p0 = _Z.cols();
-  lsbp_append_covariates( covariates_file );
+  _lsbp_append_covariates( covariates_file );
   _Z_random_effects_indices.push_back(
     Eigen::VectorXi::LinSpaced(_Z.cols() - p0, p0,
 			       _Z.cols() - 1)

@@ -602,6 +602,11 @@ stickygpm::projected_gp_regression<RealType>::shared_data
   // _W = stickygpm::basis_matrix(xyz, _knot_locations, cov);
   _W = stickygpm::knn_basis_matrix2(
     xyz, _knot_locations, cov, neighborhood );
+
+  //
+  std::cout << "\n\t(Minimax knot distance: "
+	    << stickygpm::minimax_knot_distance(mask, _knot_locations)
+	    << " mm)\n";
 };
 
 

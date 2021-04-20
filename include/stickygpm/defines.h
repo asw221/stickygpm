@@ -16,15 +16,7 @@ namespace stickygpm {
   /*! @addtogroup Stickygpm
    * @{
    */
-  
-
   typedef boost::filesystem::path path;
-
-
-  /*!
-   * Unused, currently.
-   */
-  enum class use_lambda_method { PROFILE, NATIVE, EXTENDED };
 
 
   /*!
@@ -40,18 +32,18 @@ namespace stickygpm {
 
   stickygpm::path cache_dir() {
     const char* user_home_cstr = getenv("HOME");
-    std::string _cache_d;
-    if (user_home_cstr == NULL) {
-      _cache_d = boost::filesystem::temp_directory_path().string() +
+    std::string cache_d;
+    if ( user_home_cstr == NULL ) {
+      cache_d = boost::filesystem::temp_directory_path().string() +
 	stickygpm::path::preferred_separator +
 	"stickygpmTemp";
     }
     else {
-      _cache_d = std::string(user_home_cstr) +
+      cache_d = std::string(user_home_cstr) +
 	stickygpm::path::preferred_separator +
 	".stickygpm.cache";
     }
-    return stickygpm::path(_cache_d);
+    return stickygpm::path( cache_d );
   };
 
 
@@ -63,11 +55,10 @@ namespace stickygpm {
     typedef std::mt19937 rng_type;
     // typedef boost::filesystem::path path;
 
-
-    bool _MONITOR_ = false;
-
     const int _MAX_THREADS_ = std::thread::hardware_concurrency();
-    int _N_THREADS_ = std::max(_MAX_THREADS_ * 4 / 5, 1);
+    int _N_THREADS_ = std::max( _MAX_THREADS_ * 4 / 5, 1 );
+    
+    bool _MONITOR_ = false;
 
     std::mutex _MTX_;
     
@@ -82,22 +73,6 @@ namespace stickygpm {
     );
 
     
-#ifdef STICKYGPM_SINGLE_PRECISION
-    const stickygpm::path _FFTW_WISDOM_FILE_(
-      stickygpm::cache_dir().string() +
-      stickygpm::path::preferred_separator +
-      "__fftwf_wisdom"
-    );
-    // _TEMP_DIR_.string() + "__fftwf_wisdom"
-#else
-    const stickygpm::path _FFTW_WISDOM_FILE_(
-      stickygpm::cache_dir().string() +
-      stickygpm::path::preferred_separator +
-      "__fftw_wisdom"
-    );
-    // _TEMP_DIR_.string() + "__fftw_wisdom"
-#endif
-    
   }  // namespace __internals
   /// @endcond
 
@@ -107,9 +82,8 @@ namespace stickygpm {
     return boost::filesystem::current_path();
   };
 
-  void current_path(const stickygpm::path &p) {
-    if (!p.empty())
-      boost::filesystem::current_path(p);
+  void current_path( const stickygpm::path &p ) {
+    if ( !p.empty() )  boost::filesystem::current_path(p);
   };
 
   /*! @} */  

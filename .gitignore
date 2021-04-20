@@ -22,6 +22,7 @@ test/*
 *~
 src/*~
 include/*~
+include/old
 .Rhistory
 
 

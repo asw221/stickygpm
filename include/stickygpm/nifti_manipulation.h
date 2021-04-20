@@ -181,6 +181,12 @@ namespace stickygpm {
     const ::nifti_image* const second_img
   );
 
+
+  void set_zero( ::nifti_image* const nii );
+
+  template< typename ImageType >
+  void set_zero_impl( ::nifti_image* const nii );  
+
   
   sform_type sform_matrix(const ::nifti_image* const img);
 
