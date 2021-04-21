@@ -698,7 +698,7 @@ double outer_rlsbp<InnerModelType>::update(
     ( _LoCoeffs_W.array() * _sigma2_inv.array().sqrt() ).matrix()
     .template cast<double>().colwise().squaredNorm().sum();
   //
-  // std::cout << _sigma2_inv << "\n";
+  // std::cout << _LoCoeffs_W << "\n";
   // std::cout << "\n(" << _log_prior << ")\n";
   //
   _log_prior += 0.5 *
@@ -1085,18 +1085,13 @@ void outer_rlsbp<InnerModelType>::_update_logistic_coefficients(
 	//
 	mu = std::isinf( mu ) ? 100 : mu;
 	if ( cluster == j ) {
-	  upper = 1e4;
+	  upper = 1e3;
 	  lower = 0;
 	}
 	else {
-	  // else if (cluster > j) {
 	  upper = 0;
-	  lower = -1e4;
+	  lower = -1e3;
 	}
-	// else {
-	//   upper = 1e4;
-	//   lower = -1e4;
-	// }
 	truncated_logistic_distribution<scalar_type> TLogis(
           mu, 1, lower, upper);
 	_eta.coeffRef(i) = TLogis( stickygpm::rng() );
@@ -1105,8 +1100,7 @@ void outer_rlsbp<InnerModelType>::_update_logistic_coefficients(
 	logistic_weight_distribution<scalar_type> LWD( residual2 );
 	_lambda_inv.coeffRef(i) = 1 / LWD( stickygpm::rng() );
       }
-      // for (int i = 0; ...
-      // (loop over participants)
+      // for (int i = 0; ...  (loop over participants)
     
       _draw_gaussian();
       _PrecW = data.Z().transpose() * _lambda_inv.asDiagonal() * data.Z();
@@ -1140,7 +1134,7 @@ void outer_rlsbp<InnerModelType>::_update_logistic_coefficients(
       if ( _has_intercept ) {
 	truncated_normal_distribution<scalar_type> TNorm(
           (scalar_type)0,  // _w_mu0.coeffRef(0)
-	  (scalar_type)1,
+          (scalar_type)1,
 	  // _w_mu0.coeffRef(0, j),
 	  // 1 / _sigma2_inv.coeffRef(0, j),
 	  lower, upper
@@ -1171,9 +1165,8 @@ void outer_rlsbp<InnerModelType>::_update_logistic_coefficients(
     }  // if/else ( n_in_clust > 0 )
     
   }
+  // for (int j = 0; ...  (loop over clusters)
   // std::cout << std::endl;
-  // for (int j = 0; ...
-  // (loop over clusters)
 };
 
 
@@ -1204,7 +1197,9 @@ void outer_rlsbp<InnerModelType>::_update_logistic_hyperparameters(
 	    sum_w += w;
 	    sum_w2 += w * w;
 	  }
-	  if ( _has_intercept ) {
+	  if ( _has_intercept ) {    // ***
+	    // ^^ This condition is not complete for all cases
+	    // but will do for now
 	    mu = static_cast<scalar_type>( 0 );
 	  }
 	  else {

@@ -101,15 +101,33 @@ public:
 
 
   
-private:  
+private:
+  static const RealType _quantile_pivot;
+  
   param_type _par;
   std::uniform_real_distribution<double> _Uniform_;
+
+  template< class Generator >
+  RealType _inverse_cdf( Generator &g, const param_type& params );
+  
+  template< class Generator >
+  RealType _reject_rayleigh(
+    Generator &g,
+    const RealType Lo,
+    const RealType Up
+  );
 };
 // end - class truncated_normal_distribution
 
 
 
 
+
+// --- Constants -----------------------------------------------------
+
+template< class RealType >
+const RealType truncated_normal_distribution<RealType>
+::_quantile_pivot = 4.2648908;
 
 
 // --- Constructors & Destructors ------------------------------------
@@ -152,11 +170,11 @@ truncated_normal_distribution<RealType>::param_type::param_type(
   _low = lower;
   _mu = mean;
   _prob_high = std::min(
-    (result_type)1.0,
+    static_cast<RealType>(1),
     extra_distributions::std_normal_cdf( (upper - mean) / sd )
   );
   _prob_low = std::max(
-    (result_type)0.0,
+    static_cast<RealType>(0),
     extra_distributions::std_normal_cdf( (lower - mean) / sd )
   );
   _sigma = sd;
@@ -184,6 +202,44 @@ truncated_normal_distribution<RealType>
 
 // --- Utility Functions/Operators -----------------------------------
 
+
+template< class RealType >
+template< class Generator >
+RealType truncated_normal_distribution<RealType>::_inverse_cdf(
+  Generator &g,
+  const typename truncated_normal_distribution<RealType>
+    ::param_type& params
+) {
+  const RealType x = static_cast<RealType>( _Uniform_(g) ) *
+    (params.cdf_max() - params.cdf_min()) + params.cdf_min();
+  return extra_distributions::std_normal_quantile(x) *
+    params.stddev() + params.mean();
+};
+
+
+
+template< class RealType >
+template< class Generator >
+RealType truncated_normal_distribution<RealType>::_reject_rayleigh(
+  Generator &g,
+  const RealType Lo,
+  const RealType Up
+) {
+  const RealType c = Lo * Lo / 2;
+  const RealType q = 1 -
+    std::exp( c - Up * Up / 2 );
+  RealType u, v, x;
+  do {
+    u = _Uniform_(g);
+    v = _Uniform_(g);
+    x = c - std::log( 1 - q * u );
+  }
+  while ( (v * v * x) > Lo );
+  return std::sqrt( 2 * x );
+};
+
+
+
 template< class RealType >
 template< class Generator >
 RealType truncated_normal_distribution<RealType>::operator() (
@@ -200,10 +256,29 @@ RealType truncated_normal_distribution<RealType>::operator() (
   const typename truncated_normal_distribution<RealType>
   ::param_type& params
 ) {
-  const RealType x = static_cast<RealType>( _Uniform_(g) ) *
-    (params.cdf_max() - params.cdf_min()) + params.cdf_min();
-  return extra_distributions::std_normal_quantile(x) * stddev()
-    + mean();
+  const RealType L = (params.min() - params.mean()) / params.stddev();
+  const RealType U = (params.max() - params.mean()) / params.stddev();
+  if ( L >= _quantile_pivot ) {
+    return _reject_rayleigh(g, L, U) *
+      params.stddev() + params.mean();
+  }
+  else if ( U <= -_quantile_pivot ) {
+    return -_reject_rayleigh(g, -U, -L) *
+      params.stddev() + params.mean();
+  }
+  else {
+    return _inverse_cdf( g, params );
+  }
+  // if ( r > _params.max() ) {
+  //   std::cout << "Min: " << params.min() << "\n"
+  // 	      << "Max: " << params.max() << "\n"
+  // 	      << "Min CDF: " << params.cdf_min() << "\n"
+  // 	      << "Max CDF: " << params.cdf_max() << "\n"
+  // 	      << "p: " << x << "\n"
+  // 	      << "Q: " << extra_distributions::std_normal_quantile(x) << "\n"
+  // 	      << std::endl;
+  // }
+  return params.min();  // Not reached
 };
 
 

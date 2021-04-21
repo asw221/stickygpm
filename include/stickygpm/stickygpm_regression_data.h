@@ -279,6 +279,7 @@ void stickygpm::stickygpm_regression_data<RealType>
   const int dp = _Z.cols() - p0;
   Eigen::VectorXi& ind = _Z_fixed_effects_indices[0];
   if ( _Z_has_intercept  &&  ind == Eigen::VectorXi(0) ) {
+    // _Z_fixed_effects_indices has not been added to
     ind = Eigen::VectorXi::LinSpaced( dp, p0, p0 + dp - 1 );
   }
   else {
