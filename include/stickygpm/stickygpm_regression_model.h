@@ -658,7 +658,7 @@ stickygpm::stickygpm_regression_model<T>::stickygpm_regression_model(
   _lsbp_.initialize_clusters( data, init_kmeans );
   _lsbp_.print_cluster_sizes( std::cout );
 
-  std::cout << "Model object complete!" << std::endl;
+  std::cout << "\nModel object complete!" << std::endl;
 };
 
 
@@ -688,9 +688,10 @@ void stickygpm::stickygpm_regression_model<T>::run_mcmc(
   while ( save_count != nsave ) {
     warmup_period = iter < burnin;
     update_reflab = iter < half_burnin  &&  iter >= (burnin / 10);
-    realign_labels = iter >= half_burnin;
+    realign_labels = iter > half_burnin;
     if ( iter == half_burnin ) {
       _lsbp_.sort_clusters();
+      _lsbp_.print_reference_sizes( std::cout );
       pr_full = 0.9;
     }
     //

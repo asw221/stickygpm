@@ -123,6 +123,7 @@ public:
   int modal_cluster() const;
 
   void print_cluster_sizes( std::ostream& ost ) const;
+  void print_reference_sizes( std::ostream& ost ) const;
 
   // void rejection_rate( const double rate );
   void repulsion_parameter( const double tau );
@@ -584,6 +585,27 @@ void outer_rlsbp<InnerModelType>::print_cluster_sizes(
 	  << "}  ";
     }
   }
+};
+
+
+
+
+template< class InnerModelType >
+void outer_rlsbp<InnerModelType>::print_reference_sizes(
+  std::ostream& ost
+) const {
+  std::vector<int> rcs( _cluster_indices.size(), 0 );
+  for ( int rl : _reference_labels ) {
+    rcs[rl]++;
+  }
+  ost << "\tReference Labels:  ";
+  for ( int i = 0; i < rcs.size(); i++ ) {
+    if ( rcs[i] > 0 ) {
+      ost << "{#" << i << " - " << rcs[i] << "}  ";
+    }
+  }
+  ost << "\n\tReference log-Posterior:  " << _ref_log_posterior
+      << "\n";
 };
 
 
@@ -1366,6 +1388,7 @@ void outer_rlsbp<InnerModelType>::_reorder_clusters(
   std::vector<int> ord(new_labels.cbegin(), new_labels.cend());
   // ^^ Modified in keeping track of remaining indices to be ordered
   vector_type wtemp(_LoCoeffs_W.rows());
+  scalar_type xtemp;
   // Reassign cluster labels
   for ( int& cl : _cluster_labels ) {
     cl = new_labels[ cl ];
@@ -1388,6 +1411,22 @@ void outer_rlsbp<InnerModelType>::_reorder_clusters(
     wtemp = _LoCoeffs_W.col(k);
     _LoCoeffs_W.col(k) = _LoCoeffs_W.col(ord[k]);
     _LoCoeffs_W.col(ord[k]) = wtemp;
+    //
+    wtemp = _sigma2_inv.col(k);
+    _sigma2_inv.col(k) = _sigma2_inv.col(ord[k]);
+    _sigma2_inv.col(ord[k]) = wtemp;
+    //
+    wtemp = _w_mu0.col(k);
+    _w_mu0.col(k) = _w_mu0.col(ord[k]);
+    _w_mu0.col(ord[k]) = wtemp;
+    //
+    wtemp = _loc_shrink.col(k);
+    _loc_shrink.col(k) = _loc_shrink.col(ord[k]);
+    _loc_shrink.col(ord[k]) = wtemp;
+    //
+    xtemp = _glb_shrink.coeff(k);
+    _glb_shrink.coeffRef(k) = _glb_shrink.coeff(ord[k]);
+    _glb_shrink.coeffRef(ord[k]) = xtemp;
     //
     // Update 'ord'
     for (int h = k; h < (int)ord.size(); h++) {
