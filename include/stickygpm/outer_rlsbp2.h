@@ -173,6 +173,7 @@ private:
   
 
   void _initialize_cluster_labels( const matrix_type& Y );
+  void _initialize_single_cluster_label( const matrix_type& Y );
 
   void _update_cluster_labels(
     const stickygpm::stickygpm_regression_data<scalar_type>& data,
@@ -756,7 +757,8 @@ void outer_rlsbp<InnerModelType>::initialize_clusters(
   const stickygpm::stickygpm_regression_data<
     typename outer_rlsbp<InnerModelType>::scalar_type >& data
 ) {
-  _initialize_cluster_labels( data.Y() );
+  // _initialize_cluster_labels( data.Y() );
+  _initialize_single_cluster_label( data.Y() );
 };
 
 
@@ -881,6 +883,34 @@ void outer_rlsbp<InnerModelType>::_initialize_cluster_labels(
     // if ( i < (Y.cols() - 1) )
   }
   // for (int i = 1; i < Y.cols(); i++)  ...
+  _shrink_cluster_indices();
+  _Initialized_ = true;
+};
+
+
+
+
+
+
+template< class InnerModelType >
+void outer_rlsbp<InnerModelType>::_initialize_single_cluster_label(
+  const typename outer_rlsbp<InnerModelType>::matrix_type& Y
+) {
+  const int trunc = _MaxClust_ + 1;
+  _cluster_labels.resize( Y.cols() );
+  _reference_labels.resize( Y.cols() );
+  _cluster_indices.resize( trunc );
+  _reserve_cluster_indices( Y.cols() );
+  _Clustering_cost = Eigen::MatrixXi::Zero( trunc, trunc );
+  //
+  
+  for (int i = 0; i < Y.cols(); i++) {
+    _cluster_labels[i] = 0;
+    _reference_labels[i] = 0;
+    _Clustering_cost.coeffRef(0, 0) -= 1;
+    _cluster_indices[0].push_back(i);
+  }
+  
   _shrink_cluster_indices();
   _Initialized_ = true;
 };
