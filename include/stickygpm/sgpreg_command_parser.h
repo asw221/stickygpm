@@ -35,6 +35,7 @@ namespace stickygpm {
     int knots() const;
     // double rejection_rate() const;
     double repulsion_parameter() const;
+    int initial_k() const;
     int lsbp_truncation() const;
     int mcmc_burnin() const;
     int mcmc_nsave() const;
@@ -65,6 +66,7 @@ namespace stickygpm {
     bool _output_samples;
     // double _rejection_rate;
     double _repulsion;
+    int _init_k;
     int _knots;
     int _lsbp_truncation;
     int _mcmc_burnin;
@@ -113,6 +115,7 @@ void stickygpm::sgpreg_command_parser<T>::show_help() const {
 	    << "  --clustering-covariates  file/path  LSBP fixed effects (*.csv) \n"
 	    << "  --covariance             float...   Spatial cov. func. parameters \n"
 	    << "  --debug                             Flag: short MCMC chain + output \n"
+	    << "  --kmeans                   int      Initial clustering K \n"
 	    << "  --knots                    int      Number of GP bases \n"
 	    << "  --lsbp-mu                 float     LSBP intercept hyper \n"
 	    << "  --lsbp-no-intercept                 LSBP don't include intercept \n"
@@ -164,7 +167,8 @@ stickygpm::sgpreg_command_parser<T>::sgpreg_command_parser(
   
   // --- Default Values ----------------------------------------------
   _status = call_status::success;
-  
+
+  _init_k = -1;
   _knots = 2000;
   _lsbp_truncation = 10;
   _lsbp_mu = 0;
@@ -274,6 +278,24 @@ stickygpm::sgpreg_command_parser<T>::sgpreg_command_parser(
 	_monitor = true;
 	_output_samples = true;
       }  // debug
+      else if ( arg == "--kmeans" ) {
+	if ( i + 1 < argc ) {
+	  i++;
+	  try {
+	    _init_k = std::abs( std::stoi(argv[i]) );
+	  }
+	  catch (...) {
+	    std::cerr << arg
+		      << " option requires one integer argument\n";
+	    _status = call_status::error;
+	  }
+	}
+	else {
+	  std::cerr << arg
+		    << " option requires one integer argument\n";
+	  _status = call_status::error;
+	}
+      }  // kmeans
       else if ( arg == "--knots" ) {
 	if ( i + 1 < argc ) {
 	  i++;

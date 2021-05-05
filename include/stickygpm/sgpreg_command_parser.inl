@@ -57,6 +57,12 @@ double stickygpm::sgpreg_command_parser<T>::repulsion_parameter()
 
 
 template< typename T >
+int stickygpm::sgpreg_command_parser<T>::initial_k() const {
+  return _init_k;
+};
+
+
+template< typename T >
 int stickygpm::sgpreg_command_parser<T>::knots() const {
   return _knots;
 };

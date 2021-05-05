@@ -72,7 +72,8 @@ public:
   );
 
   void initialize_clusters(
-    const stickygpm::stickygpm_regression_data<scalar_type>& data
+    const stickygpm::stickygpm_regression_data<scalar_type>& data,
+    const int k = 1
   );
 
   void sort_clusters();
@@ -172,7 +173,10 @@ private:
   Eigen::LLT<matrix_type> _llt_PrecW;
   
 
-  void _initialize_cluster_labels( const matrix_type& Y );
+  void _initialize_cluster_labels(
+    const matrix_type& Y,
+    const int k
+  );
   void _initialize_single_cluster_label( const matrix_type& Y );
 
   void _update_cluster_labels(
@@ -700,6 +704,7 @@ double outer_rlsbp<InnerModelType>::update(
     .template cast<double>().colwise().squaredNorm().sum();
   //
   // std::cout << _LoCoeffs_W << "\n";
+  // std::cout << _sigma2_inv << "\n";
   // std::cout << "\n(" << _log_prior << ")\n";
   //
   _log_prior += 0.5 *
@@ -755,10 +760,26 @@ double outer_rlsbp<InnerModelType>::update(
 template< class InnerModelType >
 void outer_rlsbp<InnerModelType>::initialize_clusters(
   const stickygpm::stickygpm_regression_data<
-    typename outer_rlsbp<InnerModelType>::scalar_type >& data
+    typename outer_rlsbp<InnerModelType>::scalar_type >& data,
+  const int k
 ) {
-  // _initialize_cluster_labels( data.Y() );
-  _initialize_single_cluster_label( data.Y() );
+  const int trunc = _MaxClust_ + 1;
+  _cluster_labels.resize( data.n() );
+  _reference_labels.resize( data.n() );
+  _cluster_indices.resize( trunc );
+  _Clustering_cost = Eigen::MatrixXi::Zero( trunc, trunc );
+  //
+  _reserve_cluster_indices( data.n() );
+  //
+  if ( k <= 1 ) {
+    _initialize_single_cluster_label( data.Y() );
+  }
+  else {
+    std::cout << "\t(k = " << k << ")\n";
+    _initialize_cluster_labels( data.Y(), std::min(k, trunc) );
+  }
+  _shrink_cluster_indices();
+  _Initialized_ = true;
 };
 
 
@@ -824,17 +845,18 @@ const InnerModelType& outer_rlsbp<InnerModelType>::inner_model_ref(
 
 template< class InnerModelType >
 void outer_rlsbp<InnerModelType>::_initialize_cluster_labels(
-  const typename outer_rlsbp<InnerModelType>::matrix_type& Y
+  const typename outer_rlsbp<InnerModelType>::matrix_type& Y,
+  const int k
 ) {
-  const int trunc = _MaxClust_ + 1;
-  _cluster_labels.resize( Y.cols() );
-  _reference_labels.resize( Y.cols() );
-  _cluster_indices.resize( trunc );
-  _reserve_cluster_indices( Y.cols() );
-  _Clustering_cost = Eigen::MatrixXi::Zero( trunc, trunc );
+  // const int trunc = _MaxClust_ + 1;
+  // _cluster_labels.resize( Y.cols() );
+  // _reference_labels.resize( Y.cols() );
+  // _cluster_indices.resize( trunc );
+  // _reserve_cluster_indices( Y.cols() );
+  // _Clustering_cost = Eigen::MatrixXi::Zero( trunc, trunc );
   std::vector<vector_type> cluster_centers;
-  cluster_centers.reserve( trunc );
-  std::vector<double> cluster_probabilities;
+  cluster_centers.reserve( k );
+  // std::vector<double> cluster_probabilities;
   scalar_type mean_y, n_sigma2_y;
   int cluster, nclust, occupied_clusters = 0;
   const scalar_type E_INV = std::exp(-1);
@@ -843,26 +865,27 @@ void outer_rlsbp<InnerModelType>::_initialize_cluster_labels(
   _cluster_indices[0].push_back(0);
   // _cluster_counts[0]++;
   occupied_clusters++;
-  for (int i = 1; i < Y.cols(); i++) {
-    cluster_probabilities.clear();
-    cluster_probabilities.resize(
-      std::min(occupied_clusters + 1, trunc));
+  for ( int i = 1; i < Y.cols(); i++ ) {
+    std::vector<double> cluster_probabilities( k, E_INV );
+    // cluster_probabilities.clear();
+    // cluster_probabilities.resize(
+    //   std::min(occupied_clusters + 1, k));
     mean_y = Y.col(i).mean();
     n_sigma2_y = ( Y.col(i) -
 		  vector_type::Constant(Y.rows(), mean_y) )
       .squaredNorm();
-    for (int j = 0; j < occupied_clusters; j++) {
+    for ( int j = 0; j < occupied_clusters; j++ ) {
       cluster_probabilities[j] = std::exp( -0.5 *
         ( Y.col(i) - cluster_centers[j] ).squaredNorm() /
 					   n_sigma2_y );
       // ^^ relative probabilities
     }
-    if ( (int)cluster_probabilities.size() < trunc ) {
-      cluster_probabilities.back() = E_INV;
-    }
+    // if ( (int)cluster_probabilities.size() < k ) {
+    //   cluster_probabilities.back() = E_INV;
+    // }
     std::discrete_distribution<int> Categorical(
       cluster_probabilities.begin(), cluster_probabilities.end());
-    cluster = Categorical(stickygpm::rng());
+    cluster = Categorical( stickygpm::rng() );
     _cluster_labels[i] = cluster;
     _reference_labels[i] = cluster;
     _Clustering_cost.coeffRef(cluster, cluster) -= 1;
@@ -883,8 +906,8 @@ void outer_rlsbp<InnerModelType>::_initialize_cluster_labels(
     // if ( i < (Y.cols() - 1) )
   }
   // for (int i = 1; i < Y.cols(); i++)  ...
-  _shrink_cluster_indices();
-  _Initialized_ = true;
+  // _shrink_cluster_indices();
+  // _Initialized_ = true;
 };
 
 
@@ -895,24 +918,13 @@ void outer_rlsbp<InnerModelType>::_initialize_cluster_labels(
 template< class InnerModelType >
 void outer_rlsbp<InnerModelType>::_initialize_single_cluster_label(
   const typename outer_rlsbp<InnerModelType>::matrix_type& Y
-) {
-  const int trunc = _MaxClust_ + 1;
-  _cluster_labels.resize( Y.cols() );
-  _reference_labels.resize( Y.cols() );
-  _cluster_indices.resize( trunc );
-  _reserve_cluster_indices( Y.cols() );
-  _Clustering_cost = Eigen::MatrixXi::Zero( trunc, trunc );
-  //
-  
+) {  
   for (int i = 0; i < Y.cols(); i++) {
     _cluster_labels[i] = 0;
     _reference_labels[i] = 0;
     _Clustering_cost.coeffRef(0, 0) -= 1;
     _cluster_indices[0].push_back(i);
   }
-  
-  _shrink_cluster_indices();
-  _Initialized_ = true;
 };
 
 
@@ -1207,6 +1219,8 @@ void outer_rlsbp<InnerModelType>::_update_logistic_hyperparameters(
   const std::vector<Eigen::VectorXi>& random_effects_indices,
   const std::vector<Eigen::VectorXi>& fixed_effects_indices
 ) {
+  const int N = _cluster_labels.size();
+  bool update_cluster_parameters = true;
   // Update random effects hyperparameters
   if ( !random_effects_indices.empty() ) {
     std::normal_distribution<scalar_type> Gaussian(0, 1);
@@ -1218,7 +1232,21 @@ void outer_rlsbp<InnerModelType>::_update_logistic_hyperparameters(
       n = indices.size();
       for ( int j = 0; j < _LoCoeffs_W.cols(); j++ ) {
 
-	if ( !_cluster_indices[j].empty() ) {
+	/* Only update cluster hyperparameters if both of the 
+	 * following hold:
+	 *   a) The cluster is non-empty
+	 *   b) The cluster is not fully occupied by all N samples
+	 *      for an LSBP with a global intercept
+	 *
+	 * There are numerical difficulties updating the parameters
+	 * in both of these cases: the logistic regression outcomes
+	 * are either all 0 or all 1. The regressions parameters
+	 * (besides the intercept) have no meaning in this context
+	 */
+	update_cluster_parameters = !_cluster_indices[j].empty() &&
+	  !( _has_intercept && _cluster_indices[j].size() == N );
+	  
+	if ( update_cluster_parameters ) {
 	  tau = _sigma2_inv.coeffRef( indices.coeffRef(0), j );
 	  sum_w = 0;
 	  sum_w2 = 0;
@@ -1247,26 +1275,27 @@ void outer_rlsbp<InnerModelType>::_update_logistic_hyperparameters(
 	    _w_mu0.coeffRef( indices.coeffRef(i), j ) = mu;
 	    _sigma2_inv.coeffRef( indices.coeffRef(i), j ) = tau;
 	  }
-	}
-	// if ( !_cluster_indices[j].empty() )
-	
-      }
-      // for ( int j = 0; j < _LoCoeffs_W.cols(); j++ )
-    }
-    // for ( const Eigen::VectorXi& indices : random_effects_indices )
+	}  // if ( update_cluster_parameters )
+      }  // for ( int j = 0; j < _LoCoeffs_W.cols(); j++ )
+    }  // for ( const Eigen::VectorXi& indices : random_effects_indices )
     
   }
   // if ( !random_effects_indices.empty() )
 
   
-  // Update fixed effects hyperparameters (horseshoe)
+  /*
+   * Update fixed effects hyperparameters (horseshoe)
+   */
   const Eigen::VectorXi& fei = fixed_effects_indices[0];
   if ( fei.size() > 0 ) {
     scalar_type nui, xii;
     
     for ( int j = 0; j < _loc_shrink.cols(); j++ ) {
 
-      if ( !_cluster_indices[j].empty() ) {
+      update_cluster_parameters = !_cluster_indices[j].empty() &&
+	!( _has_intercept && _cluster_indices[j].size() == N );
+      
+      if ( update_cluster_parameters ) {
 	scalar_type sum_ls = 0;
 	scalar_type gs = _glb_shrink.coeff(j);
       
@@ -1310,7 +1339,7 @@ void outer_rlsbp<InnerModelType>::_update_logistic_hyperparameters(
 	  _sigma2_inv.coeffRef( i, j ) = 
 	    ( _loc_shrink.coeff(i, j) * _glb_shrink.coeff(j) );
 	}
-      }  // if ( !_cluster_indices[j].empty() )
+      }  // if ( update_cluster_parameters )
     }    // for ( int j = 0; ...
   }      // if ( fei.size() > 0 )
 };

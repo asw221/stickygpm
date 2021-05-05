@@ -4,6 +4,7 @@
 #include <fstream>
 #include <iostream>
 #include <memory>
+#include <nifti1.h>
 #include <nifti1_io.h>
 #include <random>
 #include <string>
@@ -103,6 +104,7 @@ namespace stickygpm {
       const T lsbp_sigma = 1,
       const int nknots = 2000,
       const int basis_neighborhood = 2000,
+      const int init_kmeans = 1,
       const double repulsion = 0
     );
 
@@ -336,6 +338,7 @@ bool stickygpm::stickygpm_regression_model<T>::output
       std::string("_lsbp_coefficients");
     
     // Write beta means
+    mask->intent_code = NIFTI_INTENT_ESTIMATE;
     for ( int j = 0; j < _beta_first_moment[k].cols(); j++ ) {
       
       std::string beta_file = beta_file_base +
@@ -583,6 +586,7 @@ stickygpm::stickygpm_regression_model<T>::stickygpm_regression_model(
   const T lsbp_sigma,
   const int nknots,
   const int basis_neighborhood,
+  const int init_kmeans,
   const double repulsion
 ) {
 
@@ -651,7 +655,8 @@ stickygpm::stickygpm_regression_model<T>::stickygpm_regression_model(
   );
 
   std::cout << "Computing warm start clustering" << std::endl;
-  _lsbp_.initialize_clusters( data );
+  _lsbp_.initialize_clusters( data, init_kmeans );
+  _lsbp_.print_cluster_sizes( std::cout );
 
   std::cout << "Model object complete!" << std::endl;
 };
@@ -673,7 +678,7 @@ void stickygpm::stickygpm_regression_model<T>::run_mcmc(
   // const double pr_full = 0.5;
   const int half_burnin = burnin / 2;
   const double emaw = 0.02;  // Exponential moving average weight
-  double pr_full = 0.5;
+  double pr_full = 0.8;
   stickygpm::utilities::progress_bar pb( nsave * thin + burnin );
   int save_count = 0;
   double loglik = 0, mhrate = 0;

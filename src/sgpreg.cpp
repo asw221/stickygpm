@@ -121,6 +121,7 @@ int main ( int argc, char* argv[] ) {
     inputs.lsbp_prior_sigma(),
     inputs.knots(),
     inputs.neighborhood(),
+    inputs.initial_k(),
     inputs.repulsion_parameter()
   );
 
