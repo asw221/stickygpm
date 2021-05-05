@@ -599,7 +599,7 @@ void outer_rlsbp<InnerModelType>::print_reference_sizes(
     rcs[rl]++;
   }
   ost << "\tReference Labels:  ";
-  for ( int i = 0; i < rcs.size(); i++ ) {
+  for ( int i = 0; i < (int)rcs.size(); i++ ) {
     if ( rcs[i] > 0 ) {
       ost << "{#" << i << " - " << rcs[i] << "}  ";
     }
@@ -876,19 +876,21 @@ void outer_rlsbp<InnerModelType>::_initialize_cluster_labels(
   // _cluster_indices.resize( trunc );
   // _reserve_cluster_indices( Y.cols() );
   // _Clustering_cost = Eigen::MatrixXi::Zero( trunc, trunc );
-  std::vector<vector_type> cluster_centers;
-  cluster_centers.reserve( k );
+  std::vector<vector_type> cluster_centers(
+    k, vector_type::Zero(Y.rows()) );
+  // cluster_centers.reserve( k );
   // std::vector<double> cluster_probabilities;
   scalar_type mean_y, n_sigma2_y;
   int cluster, nclust, occupied_clusters = 0;
-  const scalar_type E_INV = std::exp(-1);
+  const scalar_type e_inv = std::exp(-1);
   _cluster_labels[0] = 0;
-  cluster_centers.push_back( Y.col(0).eval() );
+  // cluster_centers.push_back( Y.col(0).eval() );
+  cluster_centers[0] += Y.col(0).eval();
   _cluster_indices[0].push_back(0);
   // _cluster_counts[0]++;
   occupied_clusters++;
   for ( int i = 1; i < Y.cols(); i++ ) {
-    std::vector<double> cluster_probabilities( k, E_INV );
+    std::vector<double> cluster_probabilities( k, e_inv );
     // cluster_probabilities.clear();
     // cluster_probabilities.resize(
     //   std::min(occupied_clusters + 1, k));
@@ -903,7 +905,7 @@ void outer_rlsbp<InnerModelType>::_initialize_cluster_labels(
       // ^^ relative probabilities
     }
     // if ( (int)cluster_probabilities.size() < k ) {
-    //   cluster_probabilities.back() = E_INV;
+    //   cluster_probabilities.back() = e_inv;
     // }
     std::discrete_distribution<int> Categorical(
       cluster_probabilities.begin(), cluster_probabilities.end());
@@ -1266,7 +1268,7 @@ void outer_rlsbp<InnerModelType>::_update_logistic_hyperparameters(
 	 * (besides the intercept) have no meaning in this context
 	 */
 	update_cluster_parameters = !_cluster_indices[j].empty() &&
-	  !( _has_intercept && _cluster_indices[j].size() == N );
+	  !( _has_intercept && (int)_cluster_indices[j].size() == N );
 	  
 	if ( update_cluster_parameters ) {
 	  tau = _sigma2_inv.coeffRef( indices.coeffRef(0), j );
@@ -1315,7 +1317,7 @@ void outer_rlsbp<InnerModelType>::_update_logistic_hyperparameters(
     for ( int j = 0; j < _loc_shrink.cols(); j++ ) {
 
       update_cluster_parameters = !_cluster_indices[j].empty() &&
-	!( _has_intercept && _cluster_indices[j].size() == N );
+	!( _has_intercept && (int)_cluster_indices[j].size() == N );
       
       if ( update_cluster_parameters ) {
 	scalar_type sum_ls = 0;
