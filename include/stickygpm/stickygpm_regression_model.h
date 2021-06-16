@@ -1,11 +1,13 @@
 
 #include <algorithm>
+#include <cmath>
 #include <Eigen/Core>
 #include <fstream>
 #include <iostream>
 #include <memory>
 #include <nifti1.h>
 #include <nifti1_io.h>
+#include <limits>
 #include <random>
 #include <string>
 #include <vector>
@@ -13,6 +15,7 @@
 #include "stickygpm/covariance_functors.h"
 #include "stickygpm/extra_distributions.h"
 #include "stickygpm/utilities.h"
+#include "stickygpm/median.h"
 #include "stickygpm/nifti_manipulation.h"
 #include "stickygpm/outer_rlsbp2.h"                // <- *** 2
 #include "stickygpm/projected_gp_regression2.h"    // <- *** 2
@@ -51,7 +54,7 @@ namespace stickygpm {
         const stickygpm::stickygpm_regression_data<T>& data,
 	const outer_rlsbp< stickygpm::projected_gp_regression<T> >& lsbp,
 	const vector_type& sigma_sq_inv,
-	const T log_likelihood,
+	const Eigen::VectorXd& log_likelihood,
 	const T shape_sigma,
 	const T rate_sigma
       );
@@ -71,6 +74,9 @@ namespace stickygpm {
       double dic(
         const stickygpm::stickygpm_regression_data<T>& data
       ) const;
+
+      double lpml() const;
+      double lpml2() const;  // Gamma approximation
 		  
 
     private:
@@ -83,12 +89,18 @@ namespace stickygpm {
       // std::ofstream _sigma_log;
       std::ofstream _etc_log;  // log likelihood, sigma hyperparameter, cluster probs
       std::ofstream _cluster_log;
+      std::ofstream _llk_ord_log;
       std::vector< matrix_type > _beta_first_moment;
       std::vector< matrix_type > _beta_second_moment;
       std::vector< matrix_type > _lsbp_coeffs_second_moment;
       matrix_type _cluster_assignment_counts;
       matrix_type _lsbp_coeffs_first_moment;
       vector_type _sigma_sq_first_moment;
+
+      // double _max_llk;
+      // Eigen::VectorXd _llk_ord_first_moment;
+      // Eigen::VectorXd _llk_ord_second_moment;
+      Eigen::MatrixXd _llk_ord_samples;
     };
     // end - class output
     
@@ -185,6 +197,8 @@ stickygpm::stickygpm_regression_model<T>::output::output(
     std::string( "_beta_star_cluster" );
   const std::string lsbp_log_base = basename +
     std::string( "_lsbp_coeffs" );
+  const std::string llk_ord_log_file = basename +
+    std::string( "_loglik_ordinates.dat" );
   //
   _updates = 0;
   _output_samples = output_samples;
@@ -194,10 +208,14 @@ stickygpm::stickygpm_regression_model<T>::output::output(
   _lsbp_coeffs_second_moment.reserve( lsbp_trunc );
   _sigma_sq_first_moment = vector_type( nvox );
   //
+  // _max_llk = -std::numeric_limits<double>::max();
+  // _max_llk = 0;
+  //
   if ( output_samples ) {
     // _sigma_log = std::ofstream( sigma_log_file );
     _etc_log = std::ofstream( etc_log_file );
     _cluster_log = std::ofstream( cluster_log_file );
+    _llk_ord_log = std::ofstream( llk_ord_log_file );
     _beta_log.reserve( lsbp_trunc );
     _lsbp_coeffs_log.reserve( lsbp_trunc );
     for ( int k = 0; k < lsbp_trunc; k++ ) {
@@ -220,7 +238,7 @@ void stickygpm::stickygpm_regression_model<T>::output::update(
   const stickygpm::stickygpm_regression_data<T>& data,
   const outer_rlsbp< stickygpm::projected_gp_regression<T> >& lsbp,
   const vector_type& sigma_sq_inv,
-  const T log_likelihood,
+  const Eigen::VectorXd& log_likelihood,
   const T shape_sigma,
   const T rate_sigma
 ) {
@@ -246,6 +264,10 @@ void stickygpm::stickygpm_regression_model<T>::output::update(
     _cluster_assignment_counts =
       matrix_type::Zero( data.n(), lsbp.truncation() );
 
+    // _llk_ord_first_moment = Eigen::VectorXd::Zero( data.n() );
+    // _llk_ord_second_moment = Eigen::VectorXd::Zero( data.n() );
+    // _max_llk = log_likelihood.maxCoeff();
+
     if ( _output_samples ) {
       // Add variable names to _etc_log
       _etc_log << "LogLikelihood\tShapeSigma\tRateSigma";
@@ -258,6 +280,7 @@ void stickygpm::stickygpm_regression_model<T>::output::update(
   // end - Initialize storage
 
   // Update stored summaries
+  const double loglik = stickygpm::vsum( log_likelihood );
   vector_type proj_beta;
   for ( int k = 0; k < lsbp.truncation(); k++ ) {
     for ( int j = 0; j < data.X().cols(); j++ ) {
@@ -271,11 +294,26 @@ void stickygpm::stickygpm_regression_model<T>::output::update(
   }
   _sigma_sq_first_moment += sigma_sq_inv.cwiseInverse();
   _lsbp_coeffs_first_moment += lsbp.logistic_coefficients();
-  _loglik_first_moment += log_likelihood;
+  _loglik_first_moment += loglik;
 
   for ( int i = 0; i < data.n(); i++ ) {
     _cluster_assignment_counts.coeffRef( i, lsbp.cluster_label(i) )++;
   }
+  //
+  // const double max_loglik = log_likelihood.maxCoeff();
+  // if ( max_loglik > _max_llk ) {
+  //   std::cout << "\t==> " << (max_loglik - _max_llk) << std::endl;
+  //   double dens_scale = std::exp(max_loglik - _max_llk);
+  //   dens_scale = (isnan(dens_scale) || isinf(dens_scale)) ? 1 : dens_scale;
+  //   _scaled_inv_density *= dens_scale;
+  //   _max_llk = max_loglik;
+  // }
+  //
+  // _llk_ord_first_moment += log_likelihood;
+  // _llk_ord_second_moment += log_likelihood.cwiseAbs2();
+  _llk_ord_samples.conservativeResize( _updates + 1, log_likelihood.size() );
+  _llk_ord_samples.row(_updates) = log_likelihood.transpose();
+  // _scaled_inv_density += (-log_likelihood.array() + _max_llk).exp().matrix();
   // end - Update sotred summaries
 
   // Update log files if requested
@@ -288,7 +326,7 @@ void stickygpm::stickygpm_regression_model<T>::output::update(
 	lsbp.logistic_coefficients().col( k ).transpose()
 			  << std::endl;
     }
-    _etc_log << log_likelihood << "\t"
+    _etc_log << loglik << "\t"
 	     << shape_sigma << "\t"
 	     << rate_sigma << "\t"
 	     << lsbp.realized_cluster_probability().transpose()
@@ -296,11 +334,15 @@ void stickygpm::stickygpm_regression_model<T>::output::update(
 
     for ( int i = 0; i < data.n(); i++ ) {
       _cluster_log << lsbp.cluster_label( i );
+      _llk_ord_log << log_likelihood.coeff(i);
+      //
       if ( i < (data.n() - 1) ) {
 	_cluster_log << "\t";
+	_llk_ord_log << "\t";
       }
     }
     _cluster_log << std::endl;
+    _llk_ord_log << std::endl;
     
   }
   // if ( _output_samples )
@@ -539,6 +581,68 @@ double stickygpm::stickygpm_regression_model<T>::output::dic(
 
 
 
+template< typename T >
+double stickygpm::stickygpm_regression_model<T>::output::lpml() const {
+  /* Normal approximation */
+  const int n = _llk_ord_samples.cols();
+  const int m = _llk_ord_samples.rows();
+  double lpml_ = 0;
+  for ( int i = 0; i < n; i++ ) {
+    Eigen::VectorXd llk = _llk_ord_samples.col(i);
+    double dev = mad(llk.data(), llk.data() + m);
+    lpml_ += median(llk.data(), llk.data() + m) - 0.5 * dev * dev;
+  }
+  return lpml_;
+};
+
+
+
+
+
+template< typename T >
+double stickygpm::stickygpm_regression_model<T>::output::lpml2() const {
+  // Original:
+  // return ( -((_scaled_inv_density / _updates).array().log()) +
+  // 	   _max_llk ).sum();
+  //
+  // var(x) = E x^2 - E^2(x)
+  // Want: E x + E x^2 - E x E x
+  // return ( _llk_ord_first_moment -
+  // 	   _llk_ord_first_moment.cwiseAbs2() / _updates +
+  // 	   _llk_ord_second_moment
+  // 	   ).sum() / _updates;
+  // 
+  // Pritchard, Stephens, Donnelley: E x - 1/2 (E x^2 - E x E x)
+  // ---
+  // return ( _llk_ord_first_moment +
+  // 	   (0.5 / _updates) * _llk_ord_first_moment.cwiseAbs2() -
+  // 	   0.5 * _llk_ord_second_moment
+  // 	  ).sum() / _updates;
+  //
+  // Gamma approximation:
+  const int n = _llk_ord_samples.cols();
+  const int M = _llk_ord_samples.rows();
+  const double eps = 0.01;
+  const Eigen::VectorXd l_max = _llk_ord_samples.colwise().maxCoeff();
+  double lpml_ = 0;
+  for ( int j = 0; j < n; j++ ) {
+    double sum_x = 0, sum_lnx = 0, sum_x_lnx = 0;
+    double lnx, shape, scale, lncpo;
+    for ( int i = 0; i < M; i++ ) {
+      lnx = std::log( l_max.coeffRef(j) + eps - _llk_ord_samples.coeff(i, j) );
+      sum_x += _llk_ord_samples.coeff(i, j);
+      sum_x_lnx += _llk_ord_samples.coeff(i, j) * lnx;
+      sum_lnx += lnx;
+    }
+    shape = M * sum_x / (M * sum_x_lnx - sum_lnx * sum_x);
+    scale = (M * sum_x_lnx - sum_lnx * sum_x) / (M * M);
+    lncpo = l_max.coeffRef(j) + eps - shape * std::log(std::abs(scale - 1));
+    lpml_ += lncpo;
+  }
+  return lpml_;
+};
+
+
   // const vector_type temp =
   //   sigma_sq_inv.cwiseSqrt().asDiagonal() *
   //   ( data.Y().col( i ) - _p_data->Bases() *
@@ -557,6 +661,7 @@ void stickygpm::stickygpm_regression_model<T>::output::close_logs() {
   if ( _output_samples ) {
     _etc_log.close();
     _cluster_log.close();
+    _llk_ord_log.close();
     for ( int k = 0; k < (int)_beta_log.size(); k++ ) {
       _beta_log[ k ].close();
       _lsbp_coeffs_log[ k ].close();
@@ -629,10 +734,10 @@ stickygpm::stickygpm_regression_model<T>::stickygpm_regression_model(
     .cwiseInverse();
   _cluster_occupancy = vector_type::Zero( lsbp_truncation );
   //
-  _shape_sigma = 1;
+  _shape_sigma = 0.5;
   _rate_sigma = 0;
-  _a = 1;
-  _b = 0;
+  _a = 0.5;
+  _b = 1;
 
   //
   _avg_cluster_separation = 0;
@@ -713,10 +818,9 @@ void stickygpm::stickygpm_regression_model<T>::run_mcmc(
       emaw * mhrate;
     //
     if ( !warmup_period  &&  (iter % thin) == 0 ) {
-      loglik = _lsbp_.log_likelihood();
       _output_.update(
         data, _lsbp_, _sigma_sq_inv,
-	static_cast<scalar_type>( loglik ),
+	_lsbp_.loglik_vector( data, _sigma_sq_inv ),
 	_shape_sigma, _rate_sigma
       );
       _cluster_occupancy += _lsbp_.cluster_sizes();
@@ -727,9 +831,7 @@ void stickygpm::stickygpm_regression_model<T>::run_mcmc(
 
     // Print info
     if ( verbose ) {
-      if ( warmup_period ) {
-	loglik = _lsbp_.log_likelihood();
-      }
+      loglik = _lsbp_.log_likelihood();
       std::cout << "[" << iter << "]  LogPost: "
 		<< loglik << " + " << _lsbp_.log_prior()
 		<< "  (\u03B1 = " << mhrate << ")"
@@ -799,6 +901,8 @@ bool stickygpm::stickygpm_regression_model<T>
   const double dev = _output_.deviance( data );
   const double dic = _output_.dic( data );
   const double pD  = dic - dev;
+  const double lpm = _output_.lpml();
+  const double lpm2 = _output_.lpml2();
   const std::string fname = _output_base +
     std::string("_deviance_summary.csv");
   std::ofstream dev_summ( fname );
@@ -808,6 +912,7 @@ bool stickygpm::stickygpm_regression_model<T>
 	    << "\nEffective Parameters:\t" << pD
 	    << "\nDeviance:\t" << dev
 	    << "\nDIC:\t\t" << dic
+	    << "\nLPML:\t\t" << lpm
 	    << "\n\nAvg. Cluster Separation:\t"
 	    << _avg_cluster_separation
 	    << "\nAvg. Rejection Rate:\t\t"
@@ -815,11 +920,13 @@ bool stickygpm::stickygpm_regression_model<T>
 	    << "\n" << std::endl;
   //
   if ( dev_summ ) {
-    dev_summ << "RepulsionParameter,Deviance,DIC,RejectionRate,"
+    dev_summ << "RepulsionParameter,Deviance,DIC,LPML,LPML_2,RejectionRate,"
 	     << "AvgClusterSeparation\n";
     dev_summ << _lsbp_.repulsion_parameter() << ",";
     dev_summ << dev << ",";
     dev_summ << dic << ",";
+    dev_summ << lpm << ",";
+    dev_summ << lpm2 << ",";
     dev_summ << (1 - _avg_acceptance_rate) << ",";
     dev_summ << _avg_cluster_separation << "\n";
     dev_summ.close();

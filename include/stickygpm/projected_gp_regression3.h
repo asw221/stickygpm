@@ -64,16 +64,12 @@ namespace stickygpm {
       );
 
       double log_det_Sigma() const;
-      // scalar_type cov( const scalar_type d );
-      
       const matrix_type& knots() const;
       const matrix_type& Sigma_star() const;
       const Eigen::LLT<matrix_type>& Sigma_llt() const;
       // const matrix_type& Sigma_star_inv() const;
       // const matrix_type& Bases() const;
       const sparse_matrix_type& Bases() const;
-
-      // const CovT& cov() const;
       
     private:
       // CovT _Covf;
@@ -120,19 +116,17 @@ namespace stickygpm {
       const vector_type& sigma_sq_inv,
       const int i
     ) const;
-    
-    double log_prior() const;
-    constexpr double marginal_log_likelihood(
+
+    double marginal_log_likelihood(
       const stickygpm::stickygpm_regression_data<RealType>& data,
       const vector_type& sigma_sq_inv,
       const int i
-    ) { return 1; };
+    ) const;				   
+    
+    double log_prior() const;
 
     double proposal_distance( const matrix_type& other_beta_star ) const;
     double distance( const matrix_type& other_beta_star ) const;
-
-    scalar_type predictive_mean() const;
-    scalar_type predictive_variance() const;
 
     int nknots() const;
 
@@ -151,6 +145,8 @@ namespace stickygpm {
     //   const vector_type& sigma_sq_inv,
     //   const int i
     // ) const;
+
+    void update_tau();
     
 
   private:
@@ -162,6 +158,8 @@ namespace stickygpm {
     matrix_type _proposed_beta_star;
     vector_type _rgauss;         // Std Gaussian samples - dim(_beta_star)
     Eigen::LLT<matrix_type> _llt_Vinv;
+
+    scalar_type _tau_sq;
 
     void _draw_gaussian();
     matrix_type _projected_beta(const matrix_type& locations) const;
@@ -209,6 +207,7 @@ stickygpm::projected_gp_regression<RealType>
   _beta_star = matrix_type::Zero( _p_data->knots().rows(), ncovars );
   _proposed_beta_star = _beta_star;
   _rgauss = vector_type::Zero( _beta_star.rows() );
+  _tau_sq = 1;
 };
 
 
@@ -250,7 +249,8 @@ void stickygpm::projected_gp_regression<RealType>
   for (int j = 0; j < _beta_star.cols(); j++) {
     _draw_gaussian();
     _proposed_beta_star.col(j) =
-      _llt_Vinv.solve( _llt_Vinv.matrixL() * _rgauss );
+      _llt_Vinv.solve( _llt_Vinv.matrixL() * _rgauss ) *
+      std::sqrt(_tau_sq);
   }
 };
 
@@ -277,6 +277,10 @@ void stickygpm::projected_gp_regression<RealType>::update(
     sample_from_prior();
     return;
   }
+  //
+  update_tau();  
+  //
+  
   // const int M = _beta_star.rows();
   const int M = data.Y().rows();
   const int P = _beta_star.cols();
@@ -294,7 +298,8 @@ void stickygpm::projected_gp_regression<RealType>::update(
     Eigen::DecompositionOptions::ComputeThinV
   );
 
-  const matrix_type WtSW = _p_data->Bases().adjoint() *
+  const matrix_type WtSW = (_tau_sq * _tau_sq) *
+    _p_data->Bases().adjoint() *
     sigma_sq_inv.asDiagonal() * _p_data->Bases();
 
   //
@@ -317,7 +322,7 @@ void stickygpm::projected_gp_regression<RealType>::update(
 
 
   // Compute current residuals -> resid_hat for subset
-  resid_hat = _p_data->Bases() * _beta_star * -Xsub.transpose();
+  resid_hat = _p_data->Bases() * _beta_star * -Xsub.transpose() * _tau_sq;
   // ^^ = -mu_hat
   for (int i = 0; i < N; i++) {
     resid_hat.col(i) += data.Y().col( subset[i] );
@@ -331,23 +336,23 @@ void stickygpm::projected_gp_regression<RealType>::update(
       // remove effect of xi_star_j in residuals
       Uj.coeffRef(i) = xsvd.matrixU().coeffRef( i, j );
       resid_hat.col(i) += Uj.coeffRef( i ) *
-	_p_data->Bases() * xi_star.col( j );
+	_p_data->Bases() * xi_star.col( j ) * _tau_sq;
     }
-    mu_hat = _p_data->Bases().adjoint() *
-      ( sigma_sq_inv.asDiagonal() * (resid_hat * Uj) );
+    mu_hat = _tau_sq * (_p_data->Bases().adjoint() *
+      ( sigma_sq_inv.asDiagonal() * (resid_hat * Uj) ));
 
     // Update coefficient
     _draw_gaussian();
     Djinv2 = xsvd.singularValues().coeffRef( j );
     Djinv2 = 1 / ( Djinv2 * Djinv2 );
-    _llt_Vinv = ( WtSW + Djinv2 * _p_data->Sigma_star() ).llt();
+    _llt_Vinv = ( WtSW + (Djinv2 / _tau_sq) * _p_data->Sigma_star() ).llt();
     xi_star.col(j) =
       _llt_Vinv.solve( mu_hat + _llt_Vinv.matrixL() * _rgauss );
 
     // Update residuals
     for (int i = 0; i < N; i++) {
       resid_hat.col(i) -= Uj.coeffRef( i ) *
-	_p_data->Bases() * xi_star.col( j );
+	_p_data->Bases() * xi_star.col( j ) * _tau_sq;
     }
   }
 
@@ -355,7 +360,6 @@ void stickygpm::projected_gp_regression<RealType>::update(
   _proposed_beta_star = xi_star *
     (xsvd.singularValues().cwiseInverse().asDiagonal() *
      xsvd.matrixV().transpose());
-  
 };
 
 
@@ -397,7 +401,7 @@ double stickygpm::projected_gp_regression<RealType>::log_kernel(
   const vector_type temp =
     sigma_sq_inv.cwiseSqrt().asDiagonal() *
     ( data.Y().col( i ) - _p_data->Bases() *
-      ( _beta_star * data.X().row( i ).transpose() )
+      ( _beta_star * data.X().row( i ).transpose() * _tau_sq )
       );
   return -0.5 * stickygpm::vdot( temp );
 };
@@ -427,6 +431,28 @@ double stickygpm::projected_gp_regression<RealType>::log_likelihood(
 
 
 
+template< typename RealType >
+double stickygpm::projected_gp_regression<RealType>
+::marginal_log_likelihood(
+  const stickygpm::stickygpm_regression_data<RealType>& data,
+  const typename
+    stickygpm::projected_gp_regression<RealType>::vector_type&
+    sigma_sq_inv,
+  const int i
+) const {
+  const scalar_type c = ( data.X().row(i) *
+    data.X().row(i).transpose() ).coeff(0) * _tau_sq;
+  const scalar_type ytSiy = ( data.Y().col(i).transpose() *
+    sigma_sq_inv.asDiagonal() * data.Y().col(i) ).coeff(0);
+  const vector_type WtSiy = _p_data->Bases().adjoint() *
+    ( sigma_sq_inv.asDiagonal() * data.Y().col(i) );
+  const matrix_type Q = _p_data->Sigma_star() / c +
+    _p_data->Bases().adjoint() * sigma_sq_inv.asDiagonal() *
+    _p_data->Bases();
+  return ytSiy -
+    ( WtSiy.adjoint() * Q.llt().solve( WtSiy ) ).coeff(0);
+};
+
 
 
 
@@ -438,11 +464,14 @@ double stickygpm::projected_gp_regression<RealType>
   // ).template cast<double>().colwise().squaredNorm().sum();
   const double lp = (
     _p_data->Sigma_llt().matrixU() * _beta_star
-  ).template cast<double>().colwise().squaredNorm().sum();
+  ).template cast<double>().colwise().squaredNorm().sum() / _tau_sq;
   // std::cout << "(kern = " << lp << ";  log|S_*| = "
   // 	    << _p_data->log_det_Sigma() << ")\n";
   const double norm_c = _p_data->log_det_Sigma() * _beta_star.cols() -
-    _log_2pi * _beta_star.size();
+    _log_2pi * _beta_star.size() +
+    _beta_star.size() * std::log( _tau_sq );
+  // std::cout << "  {kern = " << lp << ";  C = " << norm_c
+  // 	    << ";  tau^2 = " << _tau_sq << "}\n";
   return -0.5 * lp + 0.5 * norm_c;
 };
 
@@ -465,24 +494,6 @@ double stickygpm::projected_gp_regression<RealType>
   const double d2 = (other_beta_star - _beta_star)
     .template cast<double>().colwise().squaredNorm().mean();
   return std::sqrt( d2 );
-};
-
-
-
-
-
-
-template< typename RealType >
-RealType stickygpm::projected_gp_regression<RealType>
-::predictive_mean() const {
-  return -1;
-};
-
-
-template< typename RealType >
-RealType stickygpm::projected_gp_regression<RealType>
-::predictive_variance() const {
-  return -1;
 };
 
 
@@ -549,7 +560,7 @@ stickygpm::projected_gp_regression<RealType>::projected_beta(
 ) const {
   assert( j >= 0 && j < _beta_star.cols() &&
 	  "projected_gp_regression::projected_beta: bad index" );
-  return _p_data->Bases() * _beta_star.col( j );
+  return _p_data->Bases() * _beta_star.col( j ) * _tau_sq;
 };
 
 
@@ -566,10 +577,32 @@ stickygpm::projected_gp_regression<RealType>::residuals(
 	  "projected_gp_regression::residuals : "
 	  "subject index i outside range" );
   return data.Y().col(i) - _p_data->Bases() *
-    ( _beta_star * data.X().row(i).transpose() );
+    ( _beta_star * data.X().row(i).transpose() * _tau_sq);
 };
 
 
+
+
+
+template< typename RealType >
+void stickygpm::projected_gp_regression<RealType>::update_tau() {
+  const RealType shape = 0.5 * _beta_star.size() + 1;
+  RealType rate = (_p_data->Sigma_llt().matrixU() * _beta_star)
+    .colwise().squaredNorm().sum();
+  // vector_type temp( _beta_star.rows() );
+  // for ( int j = 0; j < _beta_star.cols(); j++ ) {
+  //   temp = _p_data->Sigma_llt().matrixU() * _beta_star.col(j);
+  //   rate += stickygpm::vdot( temp );
+  // }
+  rate = isnan(rate) ? 0 : rate;
+  rate = 0.5 * rate + 1;
+  std::gamma_distribution<RealType> Gamma( shape, 1 / rate );
+  _tau_sq = 1 / Gamma( stickygpm::rng() );
+  _tau_sq = (_tau_sq < 1e-4) ? 1e-4 : _tau_sq;
+  /* ^^ tau -> 0 in unoccupied clusters */
+  // std::cout << "    {tau^2 = " << _tau_sq << ";  a = " << shape
+  // 	    << ", rate = " << rate << "}\n";
+};
 
 
 
@@ -616,7 +649,6 @@ stickygpm::projected_gp_regression<RealType>::shared_data
 ) {
   const matrix_type xyz = stickygpm::get_nonzero_xyz(mask)
     .template cast<scalar_type>();
-  // _Covf = cov;
   _knot_locations =
     stickygpm::get_knot_positions_uniform<scalar_type>(mask, nknots);
   _Sigma_star =
@@ -696,21 +728,6 @@ stickygpm::projected_gp_regression<RealType>::shared_data
 ::Bases() const {
   return _W;
 };
-
-
-
-// template< typename RealType >
-// RealType stickygpm::projected_gp_regression<RealType>::shared_data
-// ::cov( const RealType d ) const {
-//   return _Covf(d);
-// };
-
-
-// template< typename RealType >
-// CovT stickygpm::projected_gp_regression<RealType>::shared_data
-// ::cov() const {
-//   return _Covf;
-// };
 
 
 

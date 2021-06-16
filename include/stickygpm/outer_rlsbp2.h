@@ -21,6 +21,7 @@
 #include "stickygpm/eigen_slicing.h"
 #include "stickygpm/extra_distributions.h"
 #include "stickygpm/logistic_weight_distribution.h"
+#include "stickygpm/median.h"
 #include "stickygpm/stickygpm_regression_data.h"
 #include "stickygpm/truncated_logistic_distribution.h"
 #include "stickygpm/truncated_normal_distribution.h"
@@ -122,6 +123,12 @@ public:
   int occupied_clusters() const;
   int modal_cluster() const;
 
+
+  Eigen::VectorXd loglik_vector(
+    const stickygpm::stickygpm_regression_data<scalar_type>& data,
+    const vector_type& sigma_sq_inv
+  ) const;
+
   void print_cluster_sizes( std::ostream& ost ) const;
   void print_reference_sizes( std::ostream& ost ) const;
 
@@ -137,7 +144,7 @@ private:
   double _log_prior;
   double _log_likelihood;
   double _tau_;        // Repulsion parameter, > 0
-  double _min_cluster_dist_;
+  double _min_cluster_dist_;  // <- unused (currently)
   // double _log_tau_bar_;
   // double _m_;
   // double _mh_target;
@@ -188,6 +195,13 @@ private:
     const bool align_to_reference = false
   );
 
+  
+  double _update_inner_models(
+    const stickygpm::stickygpm_regression_data<scalar_type>& data,
+    const vector_type& sigma_sq_inv,
+    const int maxit = 10
+  );
+
   void _update_logistic_coefficients( 
     const stickygpm::stickygpm_regression_data<scalar_type>& data
   );
@@ -202,7 +216,16 @@ private:
   void _reorder_clusters( const std::vector<int>& new_labels );
   void _reserve_cluster_indices( const int n );
   void _shrink_cluster_indices();
-  
+
+  /* Convert log likelihoods to relative densities;
+   * return highest log likelihood
+   */
+  template< typename IterT >
+  double _loglik_to_reldens( IterT llstart, IterT llend );
+
+  /* Sum over container elements */
+  template< typename IterT >
+  double _sum( IterT start, IterT end );
 };
 
 
@@ -246,10 +269,11 @@ outer_rlsbp<InnerModelType>::outer_rlsbp(
   if ( _has_intercept ) {
     for ( int j = 0; j < trunc; j++ ) {
       // _w_mu0.coeffRef(0, j) = mu0 / (sigma * sigma);
+      _w_mu0.coeffRef(0, j) = mu0;
       // _sigma2_inv.coeffRef(0, j) = 1e-4;  // don't penalize intercepts
-      _sigma2_inv.coeffRef(0, j) = 10 * sigma;
+      // _sigma2_inv.coeffRef(0, j) = 10 * sigma;
       // ^^ Milder penalty on intercepts
-      _w_mu0.coeffRef(0, j) = mu0 * _sigma2_inv.coeffRef(0, j);
+      // _w_mu0.coeffRef(0, j) = mu0 * _sigma2_inv.coeffRef(0, j);
     }
   }
   //
@@ -471,6 +495,26 @@ double outer_rlsbp<InnerModelType>::log_likelihood(
 
 
 
+template< class InnerModelType >
+Eigen::VectorXd outer_rlsbp<InnerModelType>::loglik_vector(
+  const stickygpm::stickygpm_regression_data<
+    typename outer_rlsbp<InnerModelType>::scalar_type >& data,
+  const typename outer_rlsbp<InnerModelType>::vector_type& sigma_sq_inv
+) const {
+  Eigen::VectorXd loglik( data.n() );
+  int cluster;
+  // Cluster labels are always updated in data.Y()'s column order
+  for (int i = 0; i < data.n(); i++) {
+    cluster = _cluster_labels[i];
+    loglik.coeffRef(i) = _inner_models[cluster].log_likelihood(
+      data, sigma_sq_inv, i );
+  }
+  return loglik;
+};
+
+
+
+
 
 template< class InnerModelType >
 double outer_rlsbp<InnerModelType>::log_likelihood(
@@ -637,57 +681,12 @@ double outer_rlsbp<InnerModelType>::update(
   const bool update_reference_labels,
   const bool align_labels_to_reference
 ) {
-  const int n_lsbp_updates_ = 20;
-  const double eps0 = 1e-12;
-  _log_prior = 0;
-  //  ***
-  double ratio, A;
-  double prop_dist, prop_min_dist = HUGE_VAL;
-  bool accept;
-  std::uniform_real_distribution<double> Unif(0, 1);
-  //  ***
   // 1) Update inner models given cluster indices
   // double diff_sec;
   // auto start_t = std::chrono::high_resolution_clock::now();
   //
-  for ( int j = 0; j < (int)_inner_models.size(); j++ ) {
-    // std::cout << j << " ";
-    if ( _cluster_indices[j].empty() ) {
-      _inner_models[j].sample_from_prior();
-    }
-    else {
-      _inner_models[j].update(
-        data, sigma_sq_inv, _cluster_indices[j]
-      );
-    }
-    //  ***
-    if ( j > 0 ) {
-      for ( int k = 0; k < j; k++ ) {
-	prop_dist = _inner_models[k].proposal_distance(
-          _inner_models[j].proposed_parameter()
-        );
-	prop_min_dist = ( prop_dist < prop_min_dist ) ? prop_dist : prop_min_dist;
-      }
-    }
-    //  ***
-  }
-  //  ***
-  // A = 1 / ( prop_min_dist * prop_min_dist + eps0 ) +
-  //   -1 / ( _min_cluster_dist_ * _min_cluster_dist_ + eps0 );
-  A = 1 / ( prop_min_dist * prop_min_dist + eps0 );
-  ratio = std::exp( -_tau_ * A );
-  ratio = isnan( ratio ) ? 0 : ratio;
-  ratio = ( ratio > 1 ) ? 1 : ratio;
-  accept = Unif( stickygpm::rng() ) < ratio;
-  for ( int j = 0; j < (int)_inner_models.size(); j++ ) {
-    if ( accept ) {
-      _inner_models[j].accept_proposal();
-    }
-    _log_prior += _inner_models[j].log_prior();
-  }
-  if ( accept ) {
-    _min_cluster_dist_ = prop_min_dist;  // For next iteration
-  }
+  const double alpha = _update_inner_models( data, sigma_sq_inv );
+  /* ^^ Results in a partial update to _log_prior */
   // if ( update_repulsion ) {
   //   // bigger tau <==> lower MH rate
   //   _tau_ = std::abs( std::log( _mh_target ) / (A + eps0) );
@@ -715,6 +714,7 @@ double outer_rlsbp<InnerModelType>::update(
   // 2) Update LSBP coefficients
   // start_t = std::chrono::high_resolution_clock::now();
   //
+  const int n_lsbp_updates_ = 20;
   for ( int i = 0; i < n_lsbp_updates_; i++ ) {
     _update_logistic_coefficients( data );
   }
@@ -755,7 +755,7 @@ double outer_rlsbp<InnerModelType>::update(
     update_reference_labels,
     align_labels_to_reference
   );
-  // ^^ Must come after _log_prior is set
+  /* ^^ Must come after _log_prior is set */
   //
   // stop_t = std::chrono::high_resolution_clock::now();
   // duration = std::chrono::duration_cast<std::chrono::microseconds>
@@ -769,7 +769,7 @@ double outer_rlsbp<InnerModelType>::update(
   // 	    << "\nLogPrior: " << _log_prior
   // 	    << std::endl;
 
-  return ratio;
+  return alpha;
 };
 
 
@@ -1034,27 +1034,32 @@ void outer_rlsbp<InnerModelType>::_update_cluster_labels(
 	// first store the log likelihood
 	likelihood[j] = _inner_models[j].log_kernel(
           data, sigma_sq_inv, i );
-	likelihood[j] = isnan(likelihood[j]) ? -HUGE_VAL : likelihood[j];
 	
-	highest_loglik = (j == 0) ?
-	  likelihood[j] : std::max(highest_loglik, likelihood[j]);
+	// highest_loglik = (j == 0) ?
+	//   likelihood[j] : std::max(highest_loglik, likelihood[j]);
       }  // if (use_likelihood)
+      else {
+	likelihood[j] = _inner_models[j].marginal_log_likelihood(
+          data, sigma_sq_inv, i );
+      }
+      likelihood[j] = isnan(likelihood[j]) ? -HUGE_VAL : likelihood[j];
       
     }
     // end - for (int j = 0; j < vPrk.size(); j++)
 
 
-    if ( use_likelihood ) {
-      
-      for (int j = 0; j < (int)likelihood.size(); j++) {
-	likelihood[j] = std::exp(likelihood[j] - highest_loglik);
-	sumlike += likelihood[j];
-      }
-      for (int j = 0; j < (int)_pr_clust_i.size(); j++) {
-	_pr_clust_i[j] *= likelihood[j] / sumlike;
-      }
-
-    }  // if (use_likelihood)
+    // if ( use_likelihood ) {      
+      // for (int j = 0; j < (int)likelihood.size(); j++) {
+      // 	likelihood[j] = std::exp(likelihood[j] - highest_loglik);
+      // 	sumlike += likelihood[j];
+      // }
+    highest_loglik =
+      _loglik_to_reldens( likelihood.begin(), likelihood.end() );
+    sumlike = _sum( likelihood.begin(), likelihood.end() );
+    for (int j = 0; j < (int)_pr_clust_i.size(); j++) {
+      _pr_clust_i[j] *= likelihood[j] / sumlike;
+    }
+    // }  // if (use_likelihood)
 
     
     std::discrete_distribution<int> Categorical(
@@ -1118,6 +1123,68 @@ void outer_rlsbp<InnerModelType>::_update_cluster_labels(
 };
 
 
+
+
+
+
+template< class InnerModelType >
+double outer_rlsbp<InnerModelType>::_update_inner_models(
+  const stickygpm::stickygpm_regression_data<
+    typename outer_rlsbp<InnerModelType>::scalar_type >& data,
+  const typename outer_rlsbp<InnerModelType>::vector_type& sigma_sq_inv,
+  const int maxit
+) {
+  _log_prior = 0;
+  const double eps0 = 1e-12;
+  //  ***
+  double ratio, A;
+  double prop_dist, prop_min_dist;
+  bool accept = false;
+  std::uniform_real_distribution<double> Unif(0, 1);
+  //  ***
+  int tries = 0;
+  while ( tries < maxit && !accept ) {
+    prop_min_dist = HUGE_VAL;
+    for ( int j = 0; j < (int)_inner_models.size(); j++ ) {
+      // std::cout << j << " ";
+      if ( _cluster_indices[j].empty() ) {
+	_inner_models[j].sample_from_prior();
+      }
+      else {
+	_inner_models[j].update(
+          data, sigma_sq_inv, _cluster_indices[j]
+        );
+      }
+      //  ***
+      if ( j > 0 ) {
+	for ( int k = 0; k < j; k++ ) {
+	  prop_dist = _inner_models[k].proposal_distance(
+            _inner_models[j].proposed_parameter()
+          );
+	  prop_min_dist = ( prop_dist < prop_min_dist ) ? prop_dist : prop_min_dist;
+	}
+      }
+      //  ***
+    }
+    //  ***
+    // A = 1 / ( prop_min_dist * prop_min_dist + eps0 ) +
+    //   -1 / ( _min_cluster_dist_ * _min_cluster_dist_ + eps0 );
+    A = 1 / ( prop_min_dist * prop_min_dist + eps0 );
+    ratio = std::exp( -_tau_ * A );
+    ratio = isnan( ratio ) ? 0 : ratio;
+    ratio = ( ratio > 1 ) ? 1 : ratio;
+    accept = Unif( stickygpm::rng() ) < ratio;
+    tries++;
+  }
+  for ( int j = 0; j < (int)_inner_models.size(); j++ ) {
+    if ( accept ) { _inner_models[j].accept_proposal(); }
+    _log_prior += _inner_models[j].log_prior();
+  }
+  // if ( accept ) {
+  //   _min_cluster_dist_ = prop_min_dist;  // For next iteration
+  // }
+  return ( !accept ) ? 0.0 : 1.0/tries;
+};
 
 
 
@@ -1468,6 +1535,38 @@ void outer_rlsbp<InnerModelType>::_shrink_cluster_indices() {
 
 
 
+
+template< class InnerModelType >
+template< typename IterT >
+double outer_rlsbp<InnerModelType>::_loglik_to_reldens(
+  IterT llstart, IterT llend
+) {
+  /* Subtract off highest log likelihood and exponentiate */
+  double llmax = *llstart;
+  // double llsum = 0;
+  for ( IterT it = llstart; it != llend; ++it )
+    llmax = ( *it > llmax ) ? *it : llmax;
+  llmax = isnan(llmax) ? 0 : llmax;
+  for ( IterT it = llstart; it != llend; ++it ) {
+    *it = std::exp( *it - llmax );
+    // llsum += *it;
+  }
+  // llsum = ( llsum == double(0) || isnan(llsum) ) ? 1 : llsum;
+  // for ( IterT it = llstart; it != llend; ++it )  *it /= llsum;
+  return llmax;
+};
+
+
+template< class InnerModelType >
+template< typename IterT >
+double outer_rlsbp<InnerModelType>::_sum(
+ IterT start, IterT end
+) {
+  double sm = 0;
+  for ( IterT it = start; it != end; ++it )
+    sm += static_cast<double>(*it);
+  return sm;
+};
 
 #endif  // _STICKYGPM_OUTER_RLSBP_
 

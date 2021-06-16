@@ -25,14 +25,14 @@ namespace stickygpm {
     );
   
   
-  private:
-    static bool _parse_line(
+  protected:
+    static bool parse_line_(
       std::istringstream& line,
       std::vector<T>& data,
       const char delimeter
     );
 
-    static bool _is_comment_line(
+    static bool is_comment_line_(
       const std::string& line,
       const std::string& comment
     );
@@ -49,7 +49,7 @@ namespace stickygpm {
 
 
 template<>
-bool stickygpm::csv_reader<std::string>::_parse_line(
+bool stickygpm::csv_reader<std::string>::parse_line_(
   std::istringstream& line,
   std::vector<std::string>& data,
   const char delimeter
@@ -65,7 +65,7 @@ bool stickygpm::csv_reader<std::string>::_parse_line(
 
 
 template< typename T >
-bool stickygpm::csv_reader<T>::_parse_line(
+bool stickygpm::csv_reader<T>::parse_line_(
   std::istringstream& line,
   std::vector<T>& data,
   const char delimeter
@@ -85,7 +85,7 @@ bool stickygpm::csv_reader<T>::_parse_line(
 
 
 template< typename T >
-bool stickygpm::csv_reader<T>::_is_comment_line(
+bool stickygpm::csv_reader<T>::is_comment_line_(
   const std::string& line,
   const std::string &comment
 ) {
@@ -109,10 +109,10 @@ stickygpm::csv_reader<T>::read_file(
       std::string line;
       lineno++;
       if ( std::getline(ifile, line) &&
-	   !_is_comment_line(line, comment)) {
+	   !is_comment_line_(line, comment)) {
 	std::istringstream liness(line);
 	std::vector<T> line_data;
-	if ( _parse_line(liness, line_data, delimeter) ) {
+	if ( parse_line_(liness, line_data, delimeter) ) {
 	  data.push_back( line_data );
 	}
       }
