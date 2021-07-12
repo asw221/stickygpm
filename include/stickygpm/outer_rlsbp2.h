@@ -21,7 +21,6 @@
 #include "stickygpm/eigen_slicing.h"
 #include "stickygpm/extra_distributions.h"
 #include "stickygpm/logistic_weight_distribution.h"
-#include "stickygpm/median.h"
 #include "stickygpm/stickygpm_regression_data.h"
 #include "stickygpm/truncated_logistic_distribution.h"
 #include "stickygpm/truncated_normal_distribution.h"

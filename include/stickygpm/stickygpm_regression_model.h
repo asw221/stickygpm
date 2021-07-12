@@ -67,6 +67,10 @@ namespace stickygpm {
       ) const;
 
 
+      double bic(
+        const stickygpm::stickygpm_regression_data<T>& data
+      ) const;
+      
       double deviance(
         const stickygpm::stickygpm_regression_data<T>& data
       ) const;
@@ -504,14 +508,36 @@ bool stickygpm::stickygpm_regression_model<T>::output
 
 
 
+template< typename T >
+double stickygpm::stickygpm_regression_model<T>::output
+::bic(
+  const stickygpm::stickygpm_regression_data<T>& data
+) const {
+  // const double norm_c = -0.5 * data.Y().size() * _log_2pi;
+  // return -2 * ( _loglik_first_moment / _updates + norm_c );
+  //
+  // loglik from projected_gp_regression2.h already has normalizing
+  // constant baked in
+  const double dev = deviance(data);
+  const double khat = dic(data) - dev;  // Estimated # parameters
+  const double penalty = khat * std::log(data.n());
+  return dev + penalty;
+};
+
+
+
 
 template< typename T >
 double stickygpm::stickygpm_regression_model<T>::output
 ::deviance(
   const stickygpm::stickygpm_regression_data<T>& data
 ) const {
-  const double norm_c = -0.5 * data.Y().size() * _log_2pi;
-  return -2 * ( _loglik_first_moment / _updates + norm_c );
+  // const double norm_c = -0.5 * data.Y().size() * _log_2pi;
+  // return -2 * ( _loglik_first_moment / _updates + norm_c );
+  //
+  // loglik from projected_gp_regression2.h already has normalizing
+  // constant baked in
+  return -2 * ( _loglik_first_moment / _updates );
 };
 
 
@@ -901,6 +927,7 @@ bool stickygpm::stickygpm_regression_model<T>
   const double dev = _output_.deviance( data );
   const double dic = _output_.dic( data );
   const double pD  = dic - dev;
+  const double bic = dev + pD * std::log(data.n());
   const double lpm = _output_.lpml();
   const double lpm2 = _output_.lpml2();
   const std::string fname = _output_base +
@@ -911,6 +938,7 @@ bool stickygpm::stickygpm_regression_model<T>
 	    << _lsbp_.repulsion_parameter()
 	    << "\nEffective Parameters:\t" << pD
 	    << "\nDeviance:\t" << dev
+	    << "\nBIC:\t\t" << bic
 	    << "\nDIC:\t\t" << dic
 	    << "\nLPML:\t\t" << lpm
 	    << "\n\nAvg. Cluster Separation:\t"
@@ -920,10 +948,11 @@ bool stickygpm::stickygpm_regression_model<T>
 	    << "\n" << std::endl;
   //
   if ( dev_summ ) {
-    dev_summ << "RepulsionParameter,Deviance,DIC,LPML,LPML_2,RejectionRate,"
+    dev_summ << "RepulsionParameter,Deviance,BIC,DIC,LPML,LPML_2,RejectionRate,"
 	     << "AvgClusterSeparation\n";
     dev_summ << _lsbp_.repulsion_parameter() << ",";
     dev_summ << dev << ",";
+    dev_summ << bic << ",";
     dev_summ << dic << ",";
     dev_summ << lpm << ",";
     dev_summ << lpm2 << ",";
