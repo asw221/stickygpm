@@ -22,6 +22,7 @@ int main (int argc, char* argv[]) {
 
   const std::string _image_file( argv[1] );
   int nknots = 2048;
+  unsigned int seed = 8675309;
   bool error_status = false;
   std::ostringstream new_fname_stream;
   
@@ -37,7 +38,8 @@ int main (int argc, char* argv[]) {
       nknots = std::stoi( argv[2] );
     }
     if ( argc >= 4 ) {
-      stickygpm::set_seed( (unsigned)std::stoi( argv[3] ) );
+      seed = (unsigned)std::stoi( argv[3] )
+      stickygpm::set_seed( seed );
     }
     
     ::nifti_image* _mask =
@@ -58,12 +60,13 @@ int main (int argc, char* argv[]) {
     
     new_fname_stream << ::nifti_makebasename(_mask->fname)
 		     << "_" << (Knots.rows())
-		     << "knots.nii";
+		     << "knots_" << seed << ".nii";
 
     // --- Write *knots.csv ----
     std::ostringstream fnamess;
     fnamess << ::nifti_makebasename(_mask->fname)
-	    << "_" << (Knots.rows()) << ".csv";
+	    << "_" << (Knots.rows()) << "knots_"
+	    << seed << ".csv";
     std::ofstream csv( fnamess.str() );
     for ( int i = 0; i < Knots.rows(); i++ ) {
       for ( int j = 0; j < Knots.cols(); j++ ) {
