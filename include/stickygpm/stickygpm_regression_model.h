@@ -324,7 +324,11 @@ void stickygpm::stickygpm_regression_model<T>::output::update(
   if ( _output_samples ) {
 
     for ( int k = 0; k < lsbp.truncation(); k++ ) {
-      _beta_log[k] << lsbp.inner_model_ref( k ).parameter_vector().transpose()
+      if ( false ) {
+	_beta_log[k] << lsbp.inner_model_ref( k ).parameter_vector().transpose()
+		     << std::endl;
+      }
+      _beta_log[k] << lsbp.inner_model_ref( k ).projected_parameter_vector().transpose()
 		   << std::endl;
       _lsbp_coeffs_log[k] <<
 	lsbp.logistic_coefficients().col( k ).transpose()
@@ -481,6 +485,19 @@ bool stickygpm::stickygpm_regression_model<T>::output
 
 
   // Write knot locations
+  // --- csv ---
+  std::string knot_csv_fname = basename + std::string("_knots.csv");
+  std::ofstream knots_csv( knot_csv_fname );
+  for ( int i = 0; i < knot_locations.rows(); i++ ) {
+    for ( int j = 0; j < knot_locations.cols(); j++ ) {
+      knots_csv << knot_locations.coeff(i, j);
+      if (j != (knot_locations.cols() - 1)) knots_csv << ",";
+    }
+    if (i != (knot_locations.rows() - 1)) knots_csv << "\n";
+  }
+  knots_csv.close();
+  //
+  // --- nii ---
   std::string knot_file = basename + std::string("_knots.nii.gz");
   try {
     ::nifti_image* knot_img =

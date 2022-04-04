@@ -140,6 +140,7 @@ namespace stickygpm {
     const param_type& proposed_parameter() const;
     
     vector_type parameter_vector() const;
+    vector_type projected_parameter_vector() const;
     vector_type projected_beta( const int j ) const;
     vector_type residuals(
       const stickygpm::stickygpm_regression_data<RealType>& data,
@@ -529,6 +530,29 @@ stickygpm::projected_gp_regression<RealType>::parameter_vector() const {
   for ( int j = 0; j < _beta_star.cols(); j++ ) {
     for ( int i = 0; i < _beta_star.rows(); i++ ) {
       b.coeffRef( bi ) = _beta_star.coeffRef( i, j );
+      bi++;
+    }
+  }
+  return b;
+};
+
+
+
+
+template< typename RealType >
+typename stickygpm::projected_gp_regression
+  <RealType>::vector_type
+stickygpm::projected_gp_regression<RealType>::projected_parameter_vector() const {
+  const int n = _p_data->Bases().rows();
+  const int p = _beta_star.rows();
+  // vector_type b = Eigen::Map<vector_type>(_beta_star.data(), n * p, 1);
+  // ^^ does not work if parameters() is marked const
+  vector_type b( n * p );
+  int bi = 0;
+  for ( int j = 0; j < _beta_star.cols(); j++ ) {
+    vector_type projb = _p_data->Bases() * _beta_star.col(j);
+    for ( int i = 0; i < projb.size(); i++ ) {
+      b.coeffRef( bi ) = projb.coeffRef( i );
       bi++;
     }
   }
