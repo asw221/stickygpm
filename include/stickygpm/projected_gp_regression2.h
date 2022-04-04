@@ -544,18 +544,11 @@ typename stickygpm::projected_gp_regression
   <RealType>::vector_type
 stickygpm::projected_gp_regression<RealType>::projected_parameter_vector() const {
   const int n = _p_data->Bases().rows();
-  const int p = _beta_star.rows();
+  const int p = _beta_star.cols();
   // vector_type b = Eigen::Map<vector_type>(_beta_star.data(), n * p, 1);
   // ^^ does not work if parameters() is marked const
-  vector_type b( n * p );
-  int bi = 0;
-  for ( int j = 0; j < _beta_star.cols(); j++ ) {
-    vector_type projb = _p_data->Bases() * _beta_star.col(j);
-    for ( int i = 0; i < projb.size(); i++ ) {
-      b.coeffRef( bi ) = projb.coeffRef( i );
-      bi++;
-    }
-  }
+  param_type projb = _p_data->Bases() * _beta_star;
+  vector_type b( Eigen::Map<vector_type>(projb.data(), n * p) );
   return b;
 };
 
