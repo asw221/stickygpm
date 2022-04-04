@@ -1,5 +1,6 @@
 
 #include <Eigen/Core>
+#include <fstream>
 #include <iostream>
 #include <nifti1_io.h>
 #include <sstream>
@@ -58,6 +59,21 @@ int main (int argc, char* argv[]) {
     new_fname_stream << ::nifti_makebasename(_mask->fname)
 		     << "_" << (Knots.rows())
 		     << "knots.nii";
+
+    // --- Write *knots.csv ----
+    std::ostringstream fnamess;
+    fnamess << ::nifti_makebasename(_mask->fname)
+	    << "_" << (Knots.rows()) << ".csv";
+    std::ofstream csv( fnamess.str() );
+    for ( int i = 0; i < Knots.rows(); i++ ) {
+      for ( int j = 0; j < Knots.cols(); j++ ) {
+	csv << Knots(i, j);
+	if ( j != (Knots.cols() - 1) ) csv << ",";
+      }
+      if ( i != (Knots.rows() - 1) ) csv << "\n";
+    }
+    csv.close();
+    // ------------------------
 
     Knots.conservativeResize(Knots.rows(), Knots.cols() + 1);
     Knots.row(Knots.rows() - 1) = Eigen::VectorXf::Ones(Knots.rows());

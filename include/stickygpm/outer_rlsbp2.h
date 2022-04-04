@@ -1215,7 +1215,7 @@ void outer_rlsbp<InnerModelType>::_update_logistic_coefficients(
 	//   mu += it.value() * _LoCoeffs_W.coeffRef( it.index(), j );
 	// }
 	//
-	mu = std::isinf( mu ) ? 100 : mu;
+	mu = std::isinf( mu ) ? (mu < 0 ? -1 : 1) * 100 : mu;
 	if ( cluster == j ) {
 	  upper = 1e3;
 	  lower = 0;
